@@ -327,6 +327,13 @@ public struct ShoppingListLine: Identifiable, Hashable {
     /// silently dropped from the list.
     public let unparsed: [String]
 
+    public init(key: String, displayName: String, amounts: [String: Double], unparsed: [String]) {
+        self.key = key
+        self.displayName = displayName
+        self.amounts = amounts
+        self.unparsed = unparsed
+    }
+
     public var isCheckedKey: String { key }
 }
 

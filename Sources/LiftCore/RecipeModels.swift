@@ -7,11 +7,11 @@ import SwiftData
 /// in-app section, a page on the site, and one written contract every client
 /// shares. See `CoachShare.swift` for the pattern.
 ///
-/// Lives in `Shared/` so the widget extension can render "tonight's dinner"
-/// from a `PlannedMeal`. That is why this file imports only Foundation and
-/// SwiftData — no GRDB. Resolving an ingredient to macros needs the bundled
-/// reference database and therefore belongs in `Sources/Reference/`, app
-/// target only.
+/// Lives in `LiftCore`, not `LiftReference`, so the widget extension can
+/// render "tonight's dinner" from a `PlannedMeal` — `LiftCore` carries no
+/// GRDB dependency. That is why this file imports only Foundation and
+/// SwiftData. Resolving an ingredient to macros needs the bundled reference
+/// database and therefore belongs in `LiftReference`, app target only.
 ///
 /// The wire format these models are populated from is defined once and shared
 /// with the Android app and the public library, the same way

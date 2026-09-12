@@ -4,6 +4,8 @@ import XCTest
 final class DayKeyTests: XCTestCase {
 
     private let chicago = TimeZone(identifier: "America/Chicago")!
+    private let santiago = TimeZone(identifier: "America/Santiago")!
+    private let beirut = TimeZone(identifier: "Asia/Beirut")!
 
     func testAnEveningLogKeysToThatSameLocalDay() {
         // The whole reason this type is local rather than UTC. 7:30pm Central
@@ -36,6 +38,30 @@ final class DayKeyTests: XCTestCase {
 
     func testDaysBetweenSpansTheDSTFallBackWithoutDrift() {
         XCTAssertEqual(DayKey.daysBetween("2026-10-30", "2026-11-03", timeZone: chicago), 4)
+    }
+
+    func testDaysBetweenSpansASpringForwardAtMidnightInSantiago() {
+        // 2026-09-06 00:00 does not exist in America/Santiago (clocks jump
+        // straight to 01:00), so `date(from:)` alone lands one hour into the
+        // day. Without the noon anchor this undercounts by a whole day.
+        XCTAssertEqual(DayKey.daysBetween("2026-09-06", "2026-09-07", timeZone: santiago), 1)
+        XCTAssertEqual(DayKey.daysBetween("2026-09-06", "2026-09-13", timeZone: santiago), 7)
+    }
+
+    func testDaysBetweenSpansASpringForwardAtMidnightInBeirut() {
+        // Same hazard, different zone: Asia/Beirut also jumps at midnight.
+        XCTAssertEqual(DayKey.daysBetween("2026-03-29", "2026-03-30", timeZone: beirut), 1)
+    }
+
+    func testAddingADayAcrossASpringForwardAtMidnightDoesNotDrift() {
+        // `adding` walks through `Calendar.date(byAdding:)`, which preserves
+        // whatever hour `date(from:)` lands on rather than diffing two
+        // independently-rounded endpoints — verified by execution to be
+        // unaffected by the midnight-DST-gap hazard that broke `daysBetween`.
+        // This test locks that in.
+        XCTAssertEqual(DayKey.adding(days: 1, to: "2026-09-05", timeZone: santiago), "2026-09-06")
+        XCTAssertEqual(DayKey.adding(days: 1, to: "2026-09-06", timeZone: santiago), "2026-09-07")
+        XCTAssertEqual(DayKey.adding(days: -1, to: "2026-09-07", timeZone: santiago), "2026-09-06")
     }
 
     func testAMalformedKeyIsNilRatherThanACrash() {

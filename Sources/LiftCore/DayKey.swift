@@ -54,11 +54,37 @@ public enum DayKey {
     }
 
     /// Whole days between two keys, `to` minus `from`.
+    ///
+    /// Both endpoints are re-anchored to **noon** before diffing — the same
+    /// trick `PlanImporter.swift` (lift-ios) uses and documents ("Landing at
+    /// midday rather than midnight avoids a second hazard"). `date(from:)`
+    /// lands at local midnight, which does not exist in time zones whose DST
+    /// spring-forward happens exactly then (`America/Santiago`,
+    /// `Asia/Beirut`, `America/Havana`, `America/Asuncion`, `Asia/Tehran`,
+    /// Palestine): the formatter's lenient parse rounds up to 01:00 instead.
+    /// `dateComponents([.day], from:to:)` compares hour-of-day too, so a
+    /// `from`/`to` pair straddling only one rounded endpoint undercounts by a
+    /// day. Noon is not a DST transition instant anywhere, so re-deriving
+    /// both dates' year/month/day and rebuilding at hour 12 gives both
+    /// endpoints a matching, real hour before the diff.
     public static func daysBetween(_ from: String, _ to: String,
                                    timeZone: TimeZone = .current) -> Int? {
-        guard let fromDate = date(from: from, timeZone: timeZone),
-              let toDate = date(from: to, timeZone: timeZone)
+        guard let fromNoon = noon(from, timeZone: timeZone),
+              let toNoon = noon(to, timeZone: timeZone)
         else { return nil }
-        return calendar(timeZone).dateComponents([.day], from: fromDate, to: toDate).day
+        return calendar(timeZone).dateComponents([.day], from: fromNoon, to: toNoon).day
+    }
+
+    /// Re-anchors a key at local noon. See `daysBetween`'s doc comment for why.
+    private static func noon(_ key: String, timeZone: TimeZone) -> Date? {
+        guard let midnight = date(from: key, timeZone: timeZone) else { return nil }
+        let cal = calendar(timeZone)
+        let parts = cal.dateComponents([.year, .month, .day], from: midnight)
+        var noonParts = DateComponents()
+        noonParts.year = parts.year
+        noonParts.month = parts.month
+        noonParts.day = parts.day
+        noonParts.hour = 12
+        return cal.date(from: noonParts)
     }
 }

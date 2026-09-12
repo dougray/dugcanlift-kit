@@ -42,10 +42,52 @@ final class PlanLinkTests: XCTestCase {
         XCTAssertEqual(back, payload)
     }
 
-    func testDecodeRejectsAFragmentForADifferentLifter() {
-        // The `l` field addresses one client. Importing someone else's plan
-        // would silently overwrite this user's week.
+    // A fragment built WITHOUT the code under test, the way lift-ios's own
+    // PlanLinkCodecTests does it -- a fixture that shares the implementation
+    // it is testing can hide a real bug.
+    private func fragment(json: String, compressed: Bool = false) -> String {
+        let data = Data(json.utf8)
+        let payload = compressed ? (CompactEncoding.deflateRaw(data) ?? data) : data
+        let base64 = payload.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "1\(compressed ? "z" : "u")\(base64)"
+    }
+
+    private let planJSON = #"{"v":1,"t":"plan","l":"a1b2c3d4","n":"Doug","r":[],"m":[],"w":[],"k":[]}"#
+
+    func testDecodeRejectsAPlanAddressedToADifferentLifter() {
+        // The `l` field addresses one athlete. Importing someone else's plan
+        // would overwrite this user's week with a stranger's.
+        //
+        // The earlier version of this test passed "1zAAAA", which is deflate
+        // garbage -- it threw `corruptPayload` before the lifter check was
+        // ever reached, so it asserted nothing about addressing.
         XCTAssertThrowsError(
-            try PlanLinkCodec.decode(fragment: "1zAAAA", expectedLifterID: "nobody"))
+            try PlanLinkCodec.decode(fragment: fragment(json: planJSON),
+                                     expectedLifterID: "somebody-else")
+        ) { error in
+            XCTAssertEqual(error as? PlanLinkError, .notAddressedToThisDevice)
+        }
+    }
+
+    func testDecodeAcceptsAPlanAddressedToThisLifter() throws {
+        let payload = try PlanLinkCodec.decode(fragment: fragment(json: planJSON),
+                                               expectedLifterID: "a1b2c3d4")
+        XCTAssertEqual(payload.t, "plan")
+        XCTAssertEqual(payload.n, "Doug")
+    }
+
+    func testDecodeReadsACompressedFragmentToo() throws {
+        let payload = try PlanLinkCodec.decode(fragment: fragment(json: planJSON, compressed: true),
+                                               expectedLifterID: "a1b2c3d4")
+        XCTAssertEqual(payload.l, "a1b2c3d4")
+    }
+
+    func testDecodeRejectsAnUnsupportedVersion() {
+        let body = fragment(json: planJSON).dropFirst(2)
+        XCTAssertThrowsError(
+            try PlanLinkCodec.decode(fragment: "9u" + body, expectedLifterID: "a1b2c3d4"))
     }
 }

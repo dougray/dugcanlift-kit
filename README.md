@@ -13,15 +13,21 @@ tag rather than tracking a branch: a change here reaches two shipped apps.
 
 ## How the apps consume this
 
-Both apps point at a **local path**, `path: ../dugcanlift-kit`, not a tag or
-a branch. That is deliberate, chosen 2026-09-12: editing shared code is
-immediate, with no tag to cut and no version to bump in two places.
+Both apps pin an **exact tag** — `url:` plus `exactVersion:` in their
+`project.yml` — not a range and not a branch.
 
-The trade is that nothing resolves anywhere else. A second machine, a fresh
-clone, or CI cannot build either app unless this repo is checked out beside
-it under exactly this name. Neither app has CI today, which is what makes
-the trade worth taking.
+This replaced a local `path: ../dugcanlift-kit` dependency on 2026-09-12.
+The path made editing shared code immediate, but nothing resolved anywhere
+else: a fresh clone of either app could not build at all unless this repo
+happened to sit beside it under exactly this name. That was verified broken
+and then verified fixed, by cloning `coach-ios` into an empty directory with
+no sibling package and building it.
 
-**If that changes — CI, a second machine, or another person — switch both
-apps to a pinned tag.** The relative path is the only thing holding them
-together, and it is invisible until it fails.
+**Exact, not a range, because a change here reaches two shipped apps at
+once** — and `@Model` types are shared, so a property change here is a
+schema change for both, against stores holding real data. Upgrading is a
+deliberate one-line edit, never something that happens on a
+`swift package update`.
+
+Cutting a release: merge to `main`, then tag and push the tag to both
+`origin` and `behemoth`. Bump the two apps in separate PRs.

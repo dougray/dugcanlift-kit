@@ -70,8 +70,12 @@ public final class RoutinePrescribedSet {
 
     // All five optional, matching PLAN-FORMAT's
     // [weightLb, reps, rpe, durationSec, distanceMeters] tuple — a
-    // prescription is often partial. Weight is converted to kilograms at
-    // decode time (PlanImporter), so this is already canonical.
+    // prescription is often partial. `targetWeightKg` is always kilograms,
+    // full stop — that is this type's contract, not a fact about who
+    // happens to construct it today. A caller decoding a pounds-based wire
+    // format (PLAN-FORMAT's tuple included) must convert to kilograms
+    // *before* constructing a `RoutinePrescribedSet`; this type does not
+    // enforce the unit itself.
     public var targetWeightKg: Double?
     public var targetReps: Int?
     public var targetRPE: Double?

@@ -131,10 +131,14 @@ public struct LiftChip: View {
 /// A tab in a top tab row, styled as the browser build styles one: muted text
 /// that turns accent, with a 2px accent rule beneath it.
 ///
+/// Named `LiftTabButton`, not `LiftTab`: lift-ios already has a `LiftTab` enum
+/// naming its own tabs, and two visible types with one name is an ambiguity
+/// waiting for whoever imports both.
+///
 /// Not a filled block. The native builds had been drawing the selected tab as a
 /// solid accent rectangle, which reads as a button rather than a tab and is the
 /// most visible difference between the native apps and the browser.
-public struct LiftTab: View {
+public struct LiftTabButton: View {
     let label: String
     let isSelected: Bool
     let action: () -> Void

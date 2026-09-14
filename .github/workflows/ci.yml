@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: swift test
+    # macos-26 ships Xcode 26.6, matching local. The package's tests run on
+    # the macOS host; no simulator and no signing involved.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      # The trailing swift-testing line reads "0 tests in 0 suites" because
+      # every test here is XCTest; the real count is the "Executed N tests"
+      # line above it. Fail on the exit code, not on that summary.
+      - name: Unit tests
+        run: swift test

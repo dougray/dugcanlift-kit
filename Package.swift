@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "LiftReference", targets: ["LiftReference"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift", from: "6.29.0"),
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
     ],
     targets: [
         .target(name: "LiftCore"),

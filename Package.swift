@@ -28,7 +28,12 @@ let package = Package(
                 .copy("Resources/recipes.db"),
             ]
         ),
-        .testTarget(name: "LiftCoreTests", dependencies: ["LiftCore"]),
+        .testTarget(
+            name: "LiftCoreTests",
+            dependencies: ["LiftCore"],
+            // Written by other implementations (LIFT web), copied in verbatim.
+            resources: [.copy("Fixtures")]
+        ),
         .testTarget(name: "LiftReferenceTests", dependencies: ["LiftReference"]),
     ]
 )

@@ -57,15 +57,24 @@ public enum ReferenceDatabaseError: Error {
 
 /// Read-only access to the reference data shipped inside the app bundle.
 ///
-/// TWO separate databases, deliberately never joined:
+/// THREE separate databases, deliberately never joined:
 ///
 ///   food.db       USDA (public domain) + Open Food Facts (ODbL)
 ///   exercises.db  free-exercise-db (public domain) + wger (CC-BY-SA 3.0)
+///   recipes.db    UniTools world recipes (CC BY-SA 4.0) + public-domain
+///                 cookbooks, built by `Tools/build_recipes.py`
 ///
-/// ODbL and CC-BY-SA 3.0 are both share-alike and mutually incompatible.
-/// Keeping them in separate files makes this a Collective Database rather than
-/// a Derivative one, so each obligation stays scoped to its own file.
-/// Never write a query spanning both.
+/// ODbL, CC-BY-SA 3.0 and CC BY-SA 4.0 are all share-alike, and the first two
+/// are mutually incompatible. Keeping them in separate files makes this a
+/// Collective Database rather than a Derivative one, so each obligation stays
+/// scoped to its own file. Never write a query spanning any two.
+///
+/// `recipes.db` mixes two licenses *within* one file, which the rule above
+/// permits only because they do not conflict: public-domain text can be
+/// combined into a BY-SA work and the result is simply BY-SA. Every row still
+/// records its own `license` and `attribution` so a public-domain recipe stays
+/// identifiable as one. `recipeAttributions()` exists because BY-SA requires
+/// the credit to be given, and it must stay reachable from the UI.
 ///
 /// Deliberately NOT SwiftData: this data is static, large, never user-edited,
 /// and needs full-text search. Shipping an update is a file replacement with
@@ -78,6 +87,7 @@ public actor ReferenceDatabase {
 
     private var foodQueue: DatabaseQueue?
     private var exerciseQueue: DatabaseQueue?
+    private var recipeQueue: DatabaseQueue?
 
     /// Designated initializer. `Bundle.module` cannot be used as a default
     /// argument value here — SwiftPM generates it `internal`, and Swift
@@ -114,6 +124,17 @@ public actor ReferenceDatabase {
         if let exerciseQueue { return exerciseQueue }
         let queue = try open("exercises")
         exerciseQueue = queue
+        return queue
+    }
+
+    /// `recipes.db`  UniTools world recipes (CC BY-SA 4.0) + public-domain
+    /// cookbooks. A third file for the same reason as the first two: its
+    /// share-alike obligation stays scoped to the file that carries it, and no
+    /// query ever spans it and another. See `Tools/build_recipes.py`.
+    func recipes() throws -> DatabaseQueue {
+        if let recipeQueue { return recipeQueue }
+        let queue = try open("recipes")
+        recipeQueue = queue
         return queue
     }
 

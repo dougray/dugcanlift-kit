@@ -25,6 +25,7 @@ let package = Package(
             resources: [
                 .copy("Resources/food.db"),
                 .copy("Resources/exercises.db"),
+                .copy("Resources/recipes.db"),
             ]
         ),
         .testTarget(name: "LiftCoreTests", dependencies: ["LiftCore"]),

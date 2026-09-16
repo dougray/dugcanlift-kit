@@ -107,13 +107,39 @@ public struct PlanRecipe: Codable, Equatable {
     public let u: [Double]?
     public let i: [String]?
     public let t: [String]?
+    /// `[saturatedFatG, sugarG, sodiumMg]` per serving, trailing nulls trimmed;
+    /// omitted when none is known. A key of its own rather than more positions
+    /// in `u`, which decoders read by position. It can arrive without `u`.
+    /// Build it with `ShareNutrients.itemRow(perServing:)`.
+    public let ux: WireNutrientDetails?
 
-    public init(n: String, s: Double, u: [Double]?, i: [String]?, t: [String]?) {
+    private enum CodingKeys: String, CodingKey {
+        case n, s, u, ux, i, t
+    }
+
+    public init(n: String, s: Double, u: [Double]?, i: [String]?, t: [String]?,
+                ux: WireNutrientDetails? = nil) {
         self.n = n
         self.s = s
         self.u = u
         self.i = i
         self.t = t
+        self.ux = ux
+    }
+
+    /// Hand-written only so `ux` can fail on its own: a malformed `ux` costs the
+    /// recipe its saturated fat, sugar and sodium, never the recipe. An all-null
+    /// `ux` reads as nil. Everything else decodes exactly as the synthesized init
+    /// did. Encoding is synthesized, and omits `ux` when nil.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        n = try container.decode(String.self, forKey: .n)
+        s = try container.decode(Double.self, forKey: .s)
+        u = try container.decodeIfPresent([Double].self, forKey: .u)
+        i = try container.decodeIfPresent([String].self, forKey: .i)
+        t = try container.decodeIfPresent([String].self, forKey: .t)
+        let details = (try? container.decodeIfPresent(WireNutrientDetails.self, forKey: .ux)) ?? nil
+        ux = (details?.isEmpty ?? true) ? nil : details
     }
 }
 

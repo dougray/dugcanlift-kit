@@ -41,6 +41,27 @@ final class ReferenceDatabaseTests: XCTestCase {
         XCTAssertEqual(fifty.calories, hundred.calories / 2, accuracy: 0.51)
     }
 
+    func testFoodsCarrySaturatedFatPer100g() async throws {
+        // USDA SR Legacy 173410, "Butter, salted": 81.11 g fat, 51.368 g saturated.
+        let found = try await database.food(id: "usda:173410")
+        let butter = try XCTUnwrap(found)
+        XCTAssertEqual(butter.saturatedFatPer100g, 51.368)
+        XCTAssertEqual(butter.nutrition(grams: 14).saturatedFatG ?? 0, 7.19152, accuracy: 1e-9)
+        // The columns that were already there are unchanged by the rebuild.
+        XCTAssertEqual(butter.fatPer100g, 81.11)
+        XCTAssertEqual(butter.sodiumPer100g, 643)
+        XCTAssertEqual(butter.sugarPer100g, 0.06)
+    }
+
+    func testAFoodUSDAGaveNoSaturatedFatForIsNilNotZero() async throws {
+        // Foundation food 323505, "Kale, raw": fat is published, saturated fat is not.
+        let found = try await database.food(id: "usda:323505")
+        let kale = try XCTUnwrap(found)
+        XCTAssertNil(kale.saturatedFatPer100g)
+        XCTAssertNil(kale.nutrition(grams: 100).saturatedFatG)
+        XCTAssertEqual(kale.fatPer100g, 1.49)
+    }
+
     func testAnUnknownIdentifierIsNilRatherThanAThrow() async throws {
         let food = try await database.food(id: "usda:this-does-not-exist")
         XCTAssertNil(food)

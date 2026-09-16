@@ -18,6 +18,9 @@ public struct FoodRecord: Codable, FetchableRecord, Identifiable, Hashable, Send
     public var fiberPer100g: Double?
     public var sugarPer100g: Double?
     public var sodiumPer100g: Double?
+    /// USDA FDC nutrient 1258, "Fatty acids, total saturated". nil for the
+    /// foods USDA published no value for (400 of 7,928), never zero.
+    public var saturatedFatPer100g: Double?
     public var source: String
 
     public static let databaseTableName = "foods"
@@ -32,7 +35,8 @@ public struct FoodRecord: Codable, FetchableRecord, Identifiable, Hashable, Send
             fatG:     fatPer100g * factor,
             fiberG:   fiberPer100g.map { $0 * factor },
             sugarG:   sugarPer100g.map { $0 * factor },
-            sodiumMg: sodiumPer100g.map { $0 * factor }
+            sodiumMg: sodiumPer100g.map { $0 * factor },
+            saturatedFatG: saturatedFatPer100g.map { $0 * factor }
         )
     }
 }

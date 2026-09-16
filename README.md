@@ -31,3 +31,66 @@ deliberate one-line edit, never something that happens on a
 
 Cutting a release: merge to `main`, then tag and push the tag to both
 `origin` and `behemoth`. Bump the two apps in separate PRs.
+
+## Changelog
+
+### 1.9.0 — saturated fat, sugar and sodium
+
+Tracked and shown, never targeted, and sent to coaches. Wire rules are
+SHARE-FORMAT.md and PLAN-FORMAT.md, "Saturated fat, sugar and sodium"; names
+and rounding match LIFT Android's kit.
+
+**API added**
+
+- `NutritionFacts.saturatedFatG: Double?`, and a trailing
+  `saturatedFatG: Double? = nil` init parameter. `+` and `scaled(by:)` carry it
+  like sugar and sodium: nil + nil stays nil, known + nil is the known value.
+- `WireNutrientDetails` — `[saturatedFatG, sugarG, sodiumMg]` per serving,
+  trailing nulls trimmed on encode. `init(_: NutritionFacts)`, `isEmpty`.
+- `WireNutrientTotals` — a day's `fx`, seven positions, explicit nulls.
+- `WireDay.fx: WireNutrientTotals?` and `WireDay.fe: [WireNutrientDetails?]?`,
+  as trailing `= nil` init parameters. A malformed `fx` or `fe` decodes as nil
+  and the day keeps its food; a malformed `fe` entry is nil on its own; an `fe`
+  whose length differs from `f` is dropped whole.
+- `PlanRecipe.ux: WireNutrientDetails?`, trailing `= nil`. Malformed or
+  all-null decodes as nil and the recipe stays.
+- `ShareNutrients.dayTotals(_:)`, `itemRow(_:)`, `itemRow(perServing:)`,
+  `items(_:)`, `roundGrams(_:)`, `roundMilligrams(_:)` — grams to one decimal
+  and sodium to whole mg, half-up (`floor(x + 0.5)`), totals summed unrounded.
+- `NutritionFacts.merging(_: WireNutrientDetails?)` for the receiving side.
+- `FoodRecord.saturatedFatPer100g: Double?`, from USDA nutrient 1258, and
+  `nutrition(grams:)` fills `saturatedFatG`. `food.db` gains the column: 7,528
+  of 7,928 foods have a value; the other 400 are nil, never zero. Every other
+  row, id, rowid and value is identical to 1.8.0's file.
+- `RecipeJSONLD` reads `saturatedFatContent`. Its sodium unit is now read as a
+  word: `mg`/`milligram(s)` is mg, else `g`/`gram(s)` is grams × 1000, else mg.
+  The old substring check read "320 milligrams" as 320,000 mg.
+
+**Schema consequence — read before bumping an app**
+
+SwiftData does not store `NutritionFacts` as a blob. It flattens it into one
+column per field on the owning entity (`ZSUGARG`, `ZSODIUMMG`, …, and
+`ZSUGARG1`, … for a second `NutritionFacts` property on the same model), so
+`saturatedFatG` is a new column on `FoodEntry`, `Recipe` and `PlannedMeal`
+(two on `PlannedMeal`), and it changes each entity's version hash. All of this
+was measured against real on-disk stores with SwiftData on macOS 26, not
+inferred:
+
+- **Coach iOS: no schema version needed.** It opens its container with no
+  migration plan, and SwiftData's inferred lightweight migration adds the
+  nullable columns; existing recipes and planned meals keep every value and
+  read `saturatedFatG` as nil. Worth confirming by installing over a real store,
+  as the outdoor change was.
+- **LIFT iOS: needs `LiftSchemaV7` in the same PR as the bump, or every
+  existing install fails to open its store on launch.** Every version in
+  `LiftSchemaVersions.swift`, frozen shapes included, references the live
+  `NutritionFacts`, so after the bump none of V1–V6 matches the checksum of the
+  store V6 wrote, and staged migration refuses it: *Cannot use staged migration
+  with an unknown model version* (`NSCocoaErrorDomain` 134504). Reproduced.
+  The fix that was verified: freeze a copy of the seven-field `NutritionFacts`
+  (nested in an enum; its type name does not enter the checksum), point every
+  model V1–V6 lists that holds one at a frozen shape using it — which means
+  freezing `FoodEntry`, `Recipe`, `RecipeIngredient` and `PlannedMeal` as they
+  stood in V5/V6 too, since those versions list the live classes — add V7 with
+  the live classes and a lightweight `v6ToV7`. The comment above
+  `LiftPreGramServingShapes` predicted exactly this.

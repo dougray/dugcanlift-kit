@@ -165,7 +165,13 @@ public final class RecipeIngredient {
     /// did not.
     public var displayText: String {
         guard let item, !item.isEmpty else { return rawText }
-        let amount = [qty.map(Self.trimmed), unit]
+        // The count sentinel is a grouping key, not a unit: "2 eggs", never
+        // "2 <sentinel> eggs". It contains a NUL, so printing it looks like a
+        // stray "count" rather than anything obviously wrong.
+        // `CookFormat.amountsLabel` drops it the same way for the shopping
+        // list; this is the same rule for a single line.
+        let printedUnit = unit == IngredientParser.countUnit ? nil : unit
+        let amount = [qty.map(Self.trimmed), printedUnit]
             .compactMap { $0 }
             .joined(separator: " ")
         return amount.isEmpty ? item : "\(amount) \(item)"

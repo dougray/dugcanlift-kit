@@ -89,4 +89,18 @@ final class IngredientParserTests: XCTestCase {
         XCTAssertEqual(CookFormat.servingsLabel(4), "4 servings")
         XCTAssertEqual(CookFormat.servingsLabel(2.5), "2.5 servings")
     }
+
+    func testDisplayTextNeverPrintsTheCountSentinelAsAUnit() {
+        // The sentinel contains a NUL, so leaking it into a label reads as a
+        // stray "count" -- "2 count onion" -- rather than looking broken.
+        // CookFormat.amountsLabel already drops it for the shopping list.
+        let counted = IngredientParser.parse("1 onion finely chopped", sortOrder: 0)
+        XCTAssertEqual(counted.unit, IngredientParser.countUnit)
+        XCTAssertEqual(counted.displayText, "1 onion finely chopped")
+        XCTAssertFalse(counted.displayText.contains("count"))
+
+        // A real unit still prints.
+        let measured = IngredientParser.parse("2 tbsp olive oil", sortOrder: 0)
+        XCTAssertEqual(measured.displayText, "2 tbsp olive oil")
+    }
 }

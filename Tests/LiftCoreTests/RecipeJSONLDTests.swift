@@ -161,6 +161,35 @@ final class RecipeJSONLDTests: XCTestCase {
         XCTAssertEqual(RecipeJSONLD.recipe(fromJSON: json)?.nutritionPerServing?.sodiumMg, 320)
     }
 
+    func testSodiumUnitIsReadAsAWordNotASubstring() {
+        // "320 milligrams" contains a "g" and no "mg"; a substring check read
+        // it as grams and stored 320,000 mg.
+        let cases: [(String, Double)] = [
+            (#""320 mg""#, 320), (#""320 milligrams""#, 320), (#""320 Milligram""#, 320),
+            (#""320mg""#, 320), (#""0.32 g""#, 320), (#""0.32 grams""#, 320),
+            (#""0.32g""#, 320), (#""0.32 GRAMS""#, 320), (#""320""#, 320), ("320", 320),
+        ]
+        for (sodium, expected) in cases {
+            let json = #"{"@type":"Recipe","name":"X","nutrition":{"calories":"100","sodiumContent":\#(sodium)}}"#
+            let value = RecipeJSONLD.recipe(fromJSON: json)?.nutritionPerServing?.sodiumMg
+            XCTAssertEqual(value ?? -1, expected, accuracy: 1e-9, sodium)
+        }
+    }
+
+    func testReadsSaturatedFatInGrams() {
+        let json = """
+        {"@type":"Recipe","name":"X","nutrition":{"calories":"100","fatContent":"14 g",
+         "saturatedFatContent":"5.5 g","sugarContent":"9 g"}}
+        """
+        let facts = RecipeJSONLD.recipe(fromJSON: json)?.nutritionPerServing
+        XCTAssertEqual(facts?.saturatedFatG, 5.5)
+        XCTAssertEqual(facts?.sugarG, 9)
+
+        let without = #"{"@type":"Recipe","name":"X","nutrition":{"calories":"100","fatContent":"14 g"}}"#
+        XCTAssertNil(RecipeJSONLD.recipe(fromJSON: without)?.nutritionPerServing?.saturatedFatG,
+                     "absent stays nil, never 0 g")
+    }
+
     func testNutritionWithoutCaloriesIsDropped() {
         let json = #"{"@type":"Recipe","name":"X","nutrition":{"proteinContent":"12 g"}}"#
         XCTAssertNil(RecipeJSONLD.recipe(fromJSON: json)?.nutritionPerServing)

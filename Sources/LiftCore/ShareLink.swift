@@ -111,17 +111,26 @@ public struct WireDay: Codable {
     /// Finished runs, walks and hikes that started this day, in start order.
     /// A day holding only these is still a day.
     public let o: [WireOutdoorActivity]?
+    /// Saturated fat, sugar and sodium totals for the day, with how many foods
+    /// each covers. Present when at least one food recorded any of the three.
+    public let fx: WireNutrientTotals?
+    /// One entry per `f` entry, in the same order, per serving; nil for a food
+    /// with none of the three. Sent only alongside `f`. On decode it is nil
+    /// unless its length matches `f`'s, because a misaligned `fe` would pin
+    /// sodium on the wrong food.
+    public let fe: [WireNutrientDetails?]?
 
     // Listed in the order LIFT web writes a day's keys where the older keys
     // allow it. `JSONEncoder` may still emit them in any order; key order
     // carries no meaning in this format.
     private enum CodingKeys: String, CodingKey {
-        case k, n, fo, bw, st, w, ft, f, o
+        case k, n, fo, bw, st, w, ft, fx, f, fe, o
     }
 
     public init(k: Int, n: String?, fo: String?, bw: Double?, st: Int?,
                 w: [WireWorkoutEntry]?, ft: [Double]?, f: [[Double]]?,
-                o: [WireOutdoorActivity]? = nil) {
+                o: [WireOutdoorActivity]? = nil,
+                fx: WireNutrientTotals? = nil, fe: [WireNutrientDetails?]? = nil) {
         self.k = k
         self.n = n
         self.fo = fo
@@ -131,11 +140,18 @@ public struct WireDay: Codable {
         self.ft = ft
         self.f = f
         self.o = o
+        self.fx = fx
+        self.fe = fe
     }
 
     /// Hand-written for the same reason as `ShareLinkPayload`'s: a malformed
-    /// `o` drops the day's outdoor activities, never the day's training and
-    /// food. Every other key decodes as strictly as before.
+    /// `o`, `fx` or `fe` drops only itself, never the day's training and food.
+    /// Every other key decodes as strictly as before.
+    ///
+    /// `fe` is lenient per entry, as LIFT Android's reader is: an entry holding
+    /// anything but numbers and nulls reads as nil and its neighbours survive.
+    /// An `fe` that is not an array, or whose length disagrees with `f`, is
+    /// dropped whole.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         k = try container.decode(Int.self, forKey: .k)
@@ -147,6 +163,30 @@ public struct WireDay: Codable {
         ft = try container.decodeIfPresent([Double].self, forKey: .ft)
         f = try container.decodeIfPresent([[Double]].self, forKey: .f)
         o = (try? container.decodeIfPresent([WireOutdoorActivity].self, forKey: .o)) ?? nil
+        fx = (try? container.decodeIfPresent(WireNutrientTotals.self, forKey: .fx)) ?? nil
+        let entries = (try? container.decodeIfPresent([LenientNutrientDetails].self, forKey: .fe)) ?? nil
+        if let entries, let f, entries.count == f.count {
+            fe = entries.map(\.value)
+        } else {
+            fe = nil
+        }
+    }
+
+    /// Synthesized encoding would do this too; written out so the omission of a
+    /// nil key is visible next to the decoder that relies on it.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(k, forKey: .k)
+        try container.encodeIfPresent(n, forKey: .n)
+        try container.encodeIfPresent(fo, forKey: .fo)
+        try container.encodeIfPresent(bw, forKey: .bw)
+        try container.encodeIfPresent(st, forKey: .st)
+        try container.encodeIfPresent(w, forKey: .w)
+        try container.encodeIfPresent(ft, forKey: .ft)
+        try container.encodeIfPresent(fx, forKey: .fx)
+        try container.encodeIfPresent(f, forKey: .f)
+        try container.encodeIfPresent(fe, forKey: .fe)
+        try container.encodeIfPresent(o, forKey: .o)
     }
 }
 

@@ -253,18 +253,28 @@ public enum RecipeJSONLD {
             fatG: quantity(object["fatContent"]) ?? 0,
             fiberG: quantity(object["fiberContent"]),
             sugarG: quantity(object["sugarContent"]),
-            sodiumMg: sodiumMilligrams(object["sodiumContent"])
+            sodiumMg: sodiumMilligrams(object["sodiumContent"]),
+            saturatedFatG: quantity(object["saturatedFatContent"])
         )
     }
 
     /// Sodium is the one field published in two units — "320 mg" on most sites,
     /// "0.32 g" on a few European ones. A gram value read as milligrams would
     /// be wrong by a thousand, so the unit is checked rather than assumed.
+    ///
+    /// The unit is read as a whole word, case-insensitively: `mg`, `milligram`
+    /// or `milligrams` is milligrams; otherwise `g`, `gram` or `grams` is grams,
+    /// multiplied by 1000; a bare number is milligrams. Matching substrings
+    /// instead read "320 milligrams" as grams — it contains a "g" and no "mg" —
+    /// and stored 320,000 mg. LIFT Android's kit applies the same rule.
     private static func sodiumMilligrams(_ any: Any?) -> Double? {
+        if let value = numeric(any) { return value }
         guard let raw = text(any), let value = firstNumber(in: raw) else { return nil }
-        let lowered = raw.lowercased()
-        if lowered.contains("mg") { return value }
-        if lowered.contains("g") { return value * 1000 }
+        let words = Set(raw.lowercased()
+            .split(whereSeparator: { !$0.isLetter })
+            .map(String.init))
+        if !words.isDisjoint(with: ["mg", "milligram", "milligrams"]) { return value }
+        if !words.isDisjoint(with: ["g", "gram", "grams"]) { return value * 1000 }
         return value
     }
 

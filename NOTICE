@@ -1,0 +1,24 @@
+LiftKit bundles three reference databases. Each carries its own terms, and
+they are kept in separate files so that no obligation spreads to another.
+
+  Sources/LiftReference/Resources/food.db
+    U.S. Department of Agriculture, FoodData Central. Public domain.
+
+  Sources/LiftReference/Resources/exercises.db
+    free-exercise-db. Public domain.
+    wger. CC BY-SA 3.0 — https://creativecommons.org/licenses/by-sa/3.0/
+
+  Sources/LiftReference/Resources/recipes.db
+    UniTools World Recipes — theunitools.com
+    CC BY-SA 4.0 — https://creativecommons.org/licenses/by-sa/4.0/
+
+    Pennsylvania Dutch Cooking (Project Gutenberg #26558). Public domain.
+
+    Built by Tools/build_recipes.py. Every row records its own license and
+    attribution; the public-domain rows remain public domain. The file as a
+    whole is distributed under CC BY-SA 4.0 because it contains BY-SA rows.
+    LiftKit itself is AGPL-3.0, which is already share-alike.
+
+    ReferenceDatabase.recipeAttributions() returns these credits so the apps
+    can show them. CC BY-SA requires the credit to be given; it must stay
+    reachable from the UI.

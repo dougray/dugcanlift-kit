@@ -1,0 +1,105 @@
+{
+  "about": "Where each bundled item sits in its chain's source, for check-road-food.mjs. The source URL itself is the chain's `source` in road-food.json. PDF rows are matched against the text PDFKit extracts; `columns` lists the table's numeric columns left to right, `_` for one the bundle does not carry. Add an entry here whenever an item is added to road-food.json, or the check reports it as not compared.",
+  "chains": {
+    "wendys": {
+      "method": "wendys",
+      "commonParams": "lang=en&cntry=US&sourceCode=ORDER.WENDYS&version=2.20.1",
+      "menuUrl": "https://api.app.prd.wendys.digital/web-client-gateway/menu/getSiteMenu?siteNum=0&freeStyleMenu=true&menuChannel=WEB_GUEST",
+      "items": {
+        "wendys-grilled-chicken-ranch-wrap": { "salesItemId": 42212 },
+        "wendys-4-pc-tenders": { "salesItemId": 42897 },
+        "wendys-large-chili": { "salesItemId": 40061 },
+        "wendys-chili-small": { "salesItemId": 40060 },
+        "wendys-double-stack": { "salesItemId": 40005 },
+        "wendys-bacon-double-stack": { "salesItemId": 41423 },
+        "wendys-daves-single": { "salesItemId": 40000, "modificationRemoves": "Mayo" }
+      }
+    },
+    "sonic": {
+      "method": "pdf",
+      "columns": ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "items": {
+        "sonic-crispy-tenders-3-pc": { "row": "CRISPY TENDERS (3 PC.)" },
+        "sonic-premium-chicken-bites-medium": { "row": "PREMIUM CHICKEN BITES MEDIUM" },
+        "sonic-jr-double-cheeseburger": { "row": "JR DOUBLE CHEESEBURGER" },
+        "sonic-original-sonic-smasher-double": { "row": "ORIGINAL SONIC SMASHER™ (DOUBLE)" },
+        "sonic-all-american-sonic-smasher-double": { "row": "ALL-AMERICAN SONIC SMASHER™ (DOUBLE)" },
+        "sonic-breakfast-burrito-bacon": { "row": "BREAKFAST BURRITO BACON" },
+        "sonic-1-percent-white-milk": { "row": "1% WHITE MILK" }
+      }
+    },
+    "chickfila": {
+      "method": "chickfila",
+      "items": {
+        "chickfila-8-ct-grilled-nuggets": { "row": "8 ct Grilled Nuggets", "section": "Entrées" },
+        "chickfila-12-ct-grilled-nuggets": { "row": "12 ct Grilled Nuggets", "section": "Entrées" },
+        "chickfila-grilled-filet": { "row": "Grilled Filet" },
+        "chickfila-grilled-chicken-sandwich": { "row": "Grilled Chicken Sandwich" },
+        "chickfila-grilled-chicken-club-w-colby-jack": { "row": "Grilled Chicken Club w/ Colby Jack" },
+        "chickfila-egg-white-grill": { "row": "Egg White Grill" },
+        "chickfila-hash-brown-scramble-bowl-w-grilled-filet": { "row": "Hash Brown Scramble Bowl w/ Grilled Filet" },
+        "chickfila-8-ct-chick-fil-a-nuggets": { "row": "8 ct Chick-fil-A® Nuggets", "section": "Entrées" },
+        "chickfila-chicken-tortilla-soup": { "row": "Chicken Tortilla Soup" },
+        "chickfila-1-percent-milk": { "row": "1% Milk", "section": "Drinks" }
+      }
+    },
+    "popeyes": {
+      "method": "pdf",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "items": {
+        "popeyes-blackened-tenders-3-piece": { "row": "TENDERS - BLACKENED 3 Pieces" },
+        "popeyes-blackened-tenders-5-piece": { "row": "TENDERS - BLACKENED 5 Pieces" },
+        "popeyes-tender-classic-1-piece": { "row": "TENDER - CLASSIC" },
+        "popeyes-tenders-classic-or-spicy-3-piece": { "row": "TENDERS - CLASSIC OR SPICY 3 Pieces" },
+        "popeyes-signature-chicken-breast": { "row": "BREAST (EACH)" },
+        "popeyes-signature-chicken-leg": { "row": "LEG (EACH)" }
+      }
+    },
+    "subway": {
+      "method": "pdf",
+      "columns": ["_", "kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "_", "proteinG", "_", "_", "_", "_"],
+      "items": {
+        "subway-6-grilled-chicken-fresh-avocado": { "row": "6\" Grilled Chicken & Fresh Avocado", "after": "Fresh Fit®" },
+        "subway-6-seasoned-steak-fresh-avocado": { "row": "6\" Seasoned Steak & Fresh Avocado", "after": "Fresh Fit®" },
+        "subway-6-turkey-ranch-delite": { "row": "6\" Turkey & Ranch Delite", "after": "Fresh Fit®" },
+        "subway-6-ham-turkey-stacker": { "row": "6\" Ham & Turkey Stacker", "after": "Fresh Fit®" },
+        "subway-protein-bowl-subway-club": { "row": "Subway Club®", "after": "PROTEIN BOWLS" },
+        "subway-baja-chicken-protein-pocket": { "row": "Baja Chicken", "after": "Protein Pockets" },
+        "subway-grilled-chicken-portion": { "row": "Grilled Chicken", "after": "Individual Proteins" },
+        "subway-rotisserie-style-chicken-portion": { "row": "Rotisserie-Style Chicken", "after": "Individual Proteins" }
+      }
+    },
+    "starbucks": {
+      "method": "starbucks",
+      "items": {
+        "starbucks-egg-white-roasted-red-pepper-egg-bites": { "product": 2122117, "form": "single" },
+        "starbucks-bacon-gruyere-egg-bites": { "product": 2122116, "form": "single" },
+        "starbucks-turkey-bacon-cheddar-egg-white-sandwich": { "product": 368, "form": "single" },
+        "starbucks-spinach-feta-egg-white-wrap": { "product": 371, "form": "single" },
+        "starbucks-chicken-bacon-protein-pocket": { "product": 40677, "form": "single" },
+        "starbucks-jalapeno-chicken-pocket": { "product": 2124812, "form": "single" },
+        "starbucks-country-archer-hickory-smoke-turkey-jerky": { "product": 2122004, "form": "single" },
+        "starbucks-iced-sugar-free-vanilla-protein-latte-grande": { "product": 28500, "form": "iced", "size": "Grande" }
+      }
+    },
+    "panera": {
+      "method": "pdf",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG", "_"],
+      "items": {
+        "panera-green-goddess-cobb-salad-with-chicken-whole": { "row": "Green Goddess Cobb Salad with Chicken - Whole" },
+        "panera-green-goddess-chicken-wrap": { "row": "Green Goddess Chicken Wrap" },
+        "panera-chicken-caesar-wrap": { "row": "Chicken Caesar Wrap" },
+        "panera-frontega-chicken-wrap": { "row": "Frontega Chicken Wrap" },
+        "panera-turkey-cheddar-wrap": { "row": "Turkey & Cheddar Wrap" },
+        "panera-steak-wake-on-ciabatta": { "row": "Steak & Wake on Ciabatta" },
+        "panera-hard-boiled-eggs": { "row": "Hard Boiled Eggs" },
+        "panera-homestyle-chicken-noodle-soup-bowl": { "row": "Homestyle Chicken Noodle Soup - Bowl" }
+      }
+    },
+    "quiktrip": {
+      "method": "manual",
+      "note": "QuikTrip files its PDFs under uploads/YYYY/MM/, so a replacement would appear at a new address and this check would not see it. Each quarter, open a quiktrip.com product page and confirm it still links this PDF.",
+      "why": "the PDF's extracted text interleaves rows and columns, so items were read by position on the page; the check only watches the document's date"
+    }
+  }
+}

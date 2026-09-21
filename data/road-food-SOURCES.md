@@ -180,6 +180,7 @@ made it; add it back with Chipotle or Taco Bell.
 
 ## Refresh
 
-Re-read each source above and diff against the file (the spec's refresh
-script). Snack figures are re-derived from FDC by id. Never auto-update the
-bundle.
+`node data/check-road-food.mjs` re-reads each source above and diffs it
+against the file; snack figures are re-derived from FDC by id. It writes
+`data/road-food-CHECK.md` and never updates the bundle. How to run it and the
+quarterly routine are in `data/README.md`.

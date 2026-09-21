@@ -3,3 +3,6 @@
 .DS_Store
 *.xcodeproj
 .superpowers/
+
+# Road Food refresh check: the chains' own documents, fetched locally, never committed
+data/.road-food-cache/

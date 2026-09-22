@@ -167,17 +167,87 @@ public struct PlanWorkout: Codable, Equatable {
     }
 }
 
+/// One prescribed exercise: `n` name, `q` equipment, `b` each side, `c` a
+/// coaching note, `s` the prescribed sets.
+///
+/// A set is `[weightLb, reps, rpe, durationSec, distanceMeters, flags]`, only
+/// trailing nulls trimmed. `flags` is present only on a set that names a side
+/// (PLAN-FORMAT.md "Sides"): bits 1-2 are `0` both, `1` left, `2` right, read
+/// masked -- `(flags >> 1) & 3`, where `3` is both -- never compared. It rides
+/// in `s` as a sixth number, so a decoder that reads five positions reads the
+/// weight and the reps of a sided set exactly as before.
 public struct PlanWorkoutExercise: Codable, Equatable {
     public let n: String
     public let q: String?
     public let c: String?
     public let s: [[Double?]]
+    /// Each side: `1` means every prescribed set is done on both sides, so
+    /// "3 x 8, each side" is three tuples and six sets. Omitted when not --
+    /// never sent as `0` -- and anything but `1` reads as not.
+    public let b: Int?
 
-    public init(n: String, q: String?, c: String?, s: [[Double?]]) {
+    private enum CodingKeys: String, CodingKey {
+        case n, q, b, s, c
+    }
+
+    public init(n: String, q: String?, c: String?, s: [[Double?]], b: Int? = nil) {
         self.n = n
         self.q = q
         self.c = c
         self.s = s
+        self.b = b
+    }
+
+    /// Whether every set is done on each side. Only `b == 1` is.
+    public var isEachSide: Bool { b == 1 }
+
+    /// Hand-written only so `b` can be wrong on its own: an unreadable `b` is
+    /// "not each side", never a plan that fails to open. Everything else
+    /// decodes exactly as the synthesized init did. Encoding is synthesized,
+    /// and omits `b`, like `q` and `c`, when nil. `JSONEncoder` does not keep
+    /// key order, so an encoder that needs a stable text uses `.sortedKeys`.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        n = try container.decode(String.self, forKey: .n)
+        q = try container.decodeIfPresent(String.self, forKey: .q)
+        c = try container.decodeIfPresent(String.self, forKey: .c)
+        s = try container.decode([[Double?]].self, forKey: .s)
+        if let int = try? container.decodeIfPresent(Int.self, forKey: .b) {
+            b = int
+        } else if let double = try? container.decodeIfPresent(Double.self, forKey: .b),
+                  double.rounded() == double, abs(double) < 1_000_000 {
+            b = Int(double)
+        } else {
+            b = nil
+        }
+    }
+}
+
+/// The side a prescribed set names, read from its sixth tuple position.
+///
+/// Values rather than a side type because each app has its own `SetSide`:
+/// `nil` is both, `1` left, `2` right -- SHARE-FORMAT's bits 1-2.
+public enum PlanSetFlags {
+    /// Where `flags` sits in a set tuple.
+    public static let index = 5
+
+    /// Bits 1-2 of the tuple's `flags`, masked: `1` left, `2` right, `nil`
+    /// for both -- which is also what a missing, non-integral or `3` value is.
+    /// Bit 0 (SHARE-FORMAT's warmup bit) is ignored; a plan writes it `0`.
+    public static func sideBits(of tuple: [Double?]) -> Int? {
+        guard tuple.count > index, let raw = tuple[index],
+              raw.isFinite, raw.rounded() == raw, raw >= 0, raw < 256 else { return nil }
+        switch (Int(raw) >> 1) & 0b11 {
+        case 1: return 1
+        case 2: return 2
+        default: return nil
+        }
+    }
+
+    /// The `flags` value a set on this side writes: `2` left, `4` right.
+    /// `sideBits` is `1` left or `2` right; anything else writes nothing.
+    public static func flags(sideBits: Int) -> Double? {
+        sideBits == 1 || sideBits == 2 ? Double(sideBits << 1) : nil
     }
 }
 

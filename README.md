@@ -34,6 +34,30 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.10.0 — per-side prescriptions (proposed, not yet tagged)
+
+A coach's plan can say an exercise is done each side, and that a set is for
+one side only (PLAN-FORMAT.md "Sides"). Additive, `v` stays `1`.
+
+**API added**
+
+- `PlanWorkoutExercise.b: Int?` — `1` is each side; a trailing `b: Int? = nil`
+  init parameter, and `isEachSide`. Omitted from the JSON when nil. Decoding is
+  lenient: `b` that is not a number reads as nil and the plan still opens.
+- `PlanSetFlags` — the sixth set-tuple position. `sideBits(of:)` masks bits
+  1-2 (`1` left, `2` right, nil for both, and for `3`, a missing or a
+  non-integral value); `flags(sideBits:)` is what a sided set writes (`2`, `4`).
+  Integers rather than a side type, because each app has its own `SetSide`.
+
+**No schema change.** Nothing here is a `@Model`: `Routine`,
+`RoutineExercise` and `RoutinePrescribedSet` are untouched, so neither app
+needs a schema version for this release. Where each app keeps a prescribed
+side is its own business (see each app's `CLAUDE.md`).
+
+The set tuple itself (`[[Double?]]`) already carried a sixth number: 1.9.0 and
+earlier decode a plan with sides unchanged, as two-sided sets. `PlanSidesTests`
+reads `Fixtures/web-plan-per-side.txt`, a link Coach web's own encoder wrote.
+
 ### 1.9.0 — saturated fat, sugar and sodium
 
 Tracked and shown, never targeted, and sent to coaches. Wire rules are

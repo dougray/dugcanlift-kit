@@ -96,6 +96,53 @@
         "panera-homestyle-chicken-noodle-soup-bowl": { "row": "Homestyle Chicken Noodle Soup - Bowl" }
       }
     },
+    "burgerking": {
+      "method": "pdf",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "PDFKit glues the \"Beverage\" section heading onto the milk row, so the locator carries it.",
+      "items": {
+        "burgerking-hamburger": { "row": "Hamburger" },
+        "burgerking-cheeseburger": { "row": "Cheeseburger" },
+        "burgerking-double-hamburger": { "row": "Double Hamburger" },
+        "burgerking-double-cheeseburger": { "row": "Double Cheeseburger" },
+        "burgerking-bacon-double-cheeseburger": { "row": "Bacon Double Cheeseburger" },
+        "burgerking-chicken-fries-9-pc": { "row": "Chicken Fries - 9 pc." },
+        "burgerking-chicken-nuggets-10-pc": { "row": "Chicken Nuggets- 10pc" },
+        "burgerking-classic-royal-crispy-chicken-sandwich": { "row": "Classic Royal Crispy Chicken Sandwich" },
+        "burgerking-fat-free-milk": { "row": "BeverageFat FREE Milk (8 fl oz)" }
+      }
+    },
+    "whataburger": {
+      "method": "pdf",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "items": {
+        "whataburger-garden-salad-with-grilled-chicken": { "row": "Garden Salad with Grilled Chicken" },
+        "whataburger-cobb-salad-with-grilled-chicken": { "row": "Cobb Salad with Grilled Chicken" },
+        "whataburger-chicken-fajita-taco": { "row": "#16 Chicken Fajita Taco" },
+        "whataburger-grilled-chicken-melt": { "row": "Grilled Chicken Melt" },
+        "whataburger-whatachickn-bites-4": { "row": "Whatachick\u2019n\u00ae Bites (4)" },
+        "whataburger-whatachickn-bites-6": { "row": "#14 Whatachick\u2019n\u00ae Bites (6)" },
+        "whataburger-whatachickn-bites-9": { "row": "#15 Whatachick\u2019n\u00ae Bites (9)" },
+        "whataburger-grilled-chicken-sandwich": { "row": "#11 Grilled Chicken Sandwich with Whatasauce\u2122" },
+        "whataburger-double-meat-whataburger-jr": { "row": "#8 Double Meat Whataburger Jr.\u00ae" }
+      }
+    },
+    "chipotle": {
+      "method": "pdf",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "Page 1 is a paper menu whose prose repeats \"CHICKEN* 180 cal | 4 oz\" and friends, so every row is read after the table's own last column heading.",
+      "items": {
+        "chipotle-chicken": { "row": "Chicken", "after": "Protein (g)" },
+        "chipotle-barbacoa": { "row": "Barbacoa", "after": "Protein (g)" },
+        "chipotle-steak": { "row": "Steak", "after": "Protein (g)" },
+        "chipotle-carnitas": { "row": "Carnitas", "after": "Protein (g)" },
+        "chipotle-sofritas": { "row": "Sofritas", "after": "Protein (g)" },
+        "chipotle-black-beans": { "row": "Black Beans", "after": "Protein (g)" },
+        "chipotle-supergreens-salad-mix": { "row": "Supergreens Salad Mix", "after": "Protein (g)" },
+        "chipotle-fajita-vegetables": { "row": "Fajita Vegetables", "after": "Protein (g)" },
+        "chipotle-cilantro-lime-brown-rice": { "row": "Cilantro-Lime Brown Rice", "after": "Protein (g)" }
+      }
+    },
     "quiktrip": {
       "method": "manual",
       "note": "QuikTrip files its PDFs under uploads/YYYY/MM/, so a replacement would appear at a new address and this check would not see it. Each quarter, open a quiktrip.com product page and confirm it still links this PDF.",

@@ -10,6 +10,40 @@
 | `road-food-locators.json` | Where each bundled item sits in its source: a PDF row, a sales item id, a product number. |
 | `road-food-CHECK.md` | The last check's report. Overwritten each run. |
 
+## Published on
+
+Each chain carries two dates, and they answer different questions.
+
+| Field | Means | Shape |
+|---|---|---|
+| `checkedOn` | the day a person read the chain's chart | `YYYY-MM-DD`, always present |
+| `publishedOn` | the date **the document states about itself** | `YYYY-MM-DD` or `YYYY-MM`, optional |
+
+The apps' "these numbers are old" warning keys off `publishedOn` when a chain
+has one and `checkedOn` when it does not, still at six calendar months. A
+chain with no `publishedOn` therefore reads exactly as it did before this
+field existed.
+
+`publishedOn` is only ever as precise as the document is. Burger King's chart
+prints "NOVEMBER 2022", so it is `2022-11`; Whataburger's prints "as of
+March 29, 2021", so it is `2021-03-29`. A month-only date is read as the first
+of that month everywhere it is compared, which can only make a document look
+older, never fresher.
+
+**It is what the document says in the text a reader can see**, because a reader
+can open `source` and find it. Not the PDF's metadata: Popeyes' August 2026
+guide is titled "Nutrition FEBRUARY 2023" in its file properties, and
+Whataburger's file was created on 2021-02-02 but states 2021-03-29. Not the
+server's `Last-Modified`, which is when the file was uploaded. Not the upload
+path in the URL.
+
+**A document that states no date has no key.** Never a guess, never the day it
+was fetched. Five of the eleven chains are in this position and it is not a
+gap to fill: Wendy's, Starbucks and Chick-fil-A publish live pages that say
+nothing about themselves, QuikTrip's PDF prints no date, and Sonic's says only
+"SUMMER 2026" — a season is not a month, and `2026` alone would be inventing
+the rest. `road-food-SOURCES.md` records what each document does say.
+
 ## Validate
 
 ```sh
@@ -31,16 +65,21 @@ Chick-fil-A's page, Wendy's and Starbucks' ordering APIs, FoodData Central) it
 reads each bundled item back out and compares every number. Where it can't
 (QuikTrip's PDF, whose text interleaves rows), it reports whether the document
 changed since `checkedOn`, and says "re-read by hand" when it did or when it
-can't tell. It also lists every chain or snack whose `checkedOn` is more than
-six months old, and re-runs the validator.
+can't tell. It also gives each chain's `publishedOn`, how many months old that
+document is, and whether the document still states that date at all — a
+document that has stopped saying it has been republished, which is reported and
+fails the run, because `publishedOn` is then wrong. It never reads a *new* date
+out of a document: a wrong date read by machine is worse than a missing one a
+person goes and looks up. It lists every chain or snack whose `checkedOn` is
+more than six months old, and re-runs the validator.
 
 **It never edits `road-food.json`.** A wrong number in someone's day is worse
 than an old one they can see is old. When the check says a number moved, a
 person re-reads the source, edits the file, updates `checkedOn`, and notes
 anything odd in SOURCES.md.
 
-Exit code: 1 if any source changed or couldn't be reached, 2 if only the
-validator failed, otherwise 0. "Can't compare automatically" does not fail,
+Exit code: 1 if any source changed, couldn't be reached, or no longer states
+its recorded `publishedOn`; 2 if only the validator failed; otherwise 0. "Can't compare automatically" does not fail,
 so the check can run in CI without failing on QuikTrip every time.
 
 Fetched documents are kept in `data/.road-food-cache/` (gitignored: they are
@@ -79,6 +118,11 @@ ships the data:
    quiktrip.com product page still links the recorded PDF: a new one would sit
    at a new address.
 5. **Over six months:** re-read and re-date, even if nothing moved; the apps
-   show "checked over six months ago" in words.
-6. `node data/validate-road-food.mjs`, then ship the change with the apps like
+   say so in words. Note that re-dating fixes `checkedOn` only: a chain whose
+   *document* is old stays old however often it is read, and the warning is
+   meant to keep saying so.
+6. **Document date moved:** the check reports a chain whose document no longer
+   states the date `publishedOn` records, which means the chain republished.
+   Re-read the document and its date by hand, and update both fields.
+7. `node data/validate-road-food.mjs`, then ship the change with the apps like
    any other.

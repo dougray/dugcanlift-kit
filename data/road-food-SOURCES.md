@@ -14,14 +14,17 @@ left out. Blank stays blank: a field the source doesn't give is omitted.
 Raw copies of every page, PDF and JSON that was read were kept during curation.
 They are not committed, because they are the chains' own files.
 
-## Chains in the file (8 chains, 62 items)
+## Chains in the file (11 chains, 89 items)
 
 | Chain | kind | Items | Source | Read on | Source's own date |
 |---|---|---|---|---|---|
 | Wendy's | burgers | 7 | `api.app.prd.wendys.digital/.../NutritionServices/rest/nutritionalData` (the API order.wendys.com's nutrition panel calls) | 2026-09-20 | menu generated 2026-09-21T00:02 UTC |
 | Sonic | burgers | 7 | Nutrition brochure PDF linked from sonicdrivein.com/nutrition-allergen/ (Contentful asset host) | 2026-09-20 | "Summer 2026", file named September |
+| Burger King | burgers | 9 | `bk-use1-prod.sites.rbictg.com/nutrition/nutrition.pdf` (RBI's production host for bk.com, the same host Popeyes' PDF sits on) | 2026-09-23 | **NOVEMBER 2022**; Last-Modified 2022-12-02 |
+| Whataburger | burgers | 9 | https://wbimageserver.whataburger.com/Nutrition.pdf | 2026-09-23 | **"as of March 29, 2021"** |
 | Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-09-20 | none shown |
 | Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-09-20 | "current as of August 2026" |
+| Chipotle | mexican | 9 | https://www.chipotle.com/content/dam/chipotle/menu/nutrition/US-Nutrition-Facts-Paper-Menu-3-2025.pdf | 2026-09-23 | **footed OCT-2024**; Last-Modified 2025-03-05 |
 | Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | January 2026 |
 | Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | none shown |
 | Panera Bread | coffee | 8 | https://www.panerabread.com/content/dam/panerabread/documents/c8-26-nutrition-guide.pdf | 2026-09-20 | effective 9/2/2026, edition 1 |
@@ -67,6 +70,62 @@ published figure.
   - "Tender - Classic" (1 piece) is the kids'-meal row.
   - Blackened tenders are the standout (3 pc: 170 kcal, 28 g protein), but
     their sodium is high.
+- **Burger King.** The PDF is served from RBI's production site host, the same one
+  Popeyes' PDF sits on, and it is the only Burger King nutrition document that
+  answers a plain request: bk.com/nutrition-explorer and every bk.com PDF path
+  return the app shell, and company.bk.com no longer resolves.
+  - **The document is dated NOVEMBER 2022** (Last-Modified 2022-12-02). It is
+    what Burger King publishes today, and the nine items are rows a
+    four-year-old chart is least likely to have moved on - the plain burgers,
+    nuggets and Chicken Fries - but four years is four years. **Doug: this is
+    the one to say yes or no to.** The app will show "checked 2026-09-23",
+    which is when the document was read, not when Burger King wrote it.
+  - *"Hold the cheese to save 40 kcal"* is read off the chart's own rows, not
+    guessed: Cheeseburger 290 minus Hamburger 250, Double Cheeseburger 400
+    minus Double Hamburger 360, and American Cheese (2 slices) 80 kcal. All
+    three agree at 40 kcal a slice.
+  - **Dropped: both chicken salads.** Chicken Garden Salad is published as 550
+    kcal with 81 g of carbohydrate, and Chicken Club Salad as 670 with 82 g.
+    Those carbohydrate figures are 30% out by 4/4/9 and look like a chart
+    error, so neither is in the file.
+  - **Dropped: Garden Side Salad and 4 pc Nuggets.** Both publish "< 1" for
+    fibre. Blank stays blank, and an item the check cannot read a full row for
+    is not worth the entry.
+  - PDFKit glues the "Beverage" section heading to the milk row, so the
+    locator's `row` is "BeverageFat FREE Milk (8 fl oz)". `pdftotext` will
+    almost certainly split it differently.
+- **Whataburger.** wbimageserver.whataburger.com is still the only Whataburger
+  nutrition document that a request can reach; whataburger.com is a JavaScript
+  shell and whataburger.com/files/Nutrition.pdf redirects into it. The ordering
+  API needs a key from the app bundle and was not touched.
+  - **The document says "Nutritional information as of March 29, 2021."** Five
+    and a half years. **Doug: this is the weakest link in the file.** Every
+    item chosen avoids the `*` (limited market) and `†` (limited time) marks,
+    which is the best that can be done from inside the document, but a 2021
+    chart cannot know what left the menu in 2024.
+  - Salads: the chart lists dressings in their own "DIPPING SAUCES &
+    DRESSINGS" section and says nothing about whether a salad row includes one.
+    The serving text says "dressing listed separately", which is what the
+    document supports; it does not claim the row is dressing-free.
+  - Whatachick'n Bites (4) is the kids'-menu row, as Popeyes' 1-piece tender is.
+  - The `®` and `™` marks are dropped from the names and kept in the locators,
+    because the locator matches the PDF's text and the name is what a screen
+    shows.
+- **Chipotle.** The PDF is linked under chipotle.com's own content path. The
+  live calculator is a keyed API (`Ocp-Apim-Subscription-Key` out of the order
+  site's bundle) and was not used: a key lifted from someone else's page is not
+  a published source.
+  - **The document is footed OCT-2024** (Last-Modified 2025-03-05).
+  - **The rows are components, not meals**, which is how Chipotle publishes and
+    how a bowl is actually ordered. Nothing is summed. Cilantro-Lime Brown Rice
+    is in the list at 1.9 g of protein per 100 kcal, last in any ranking, so a
+    bowl can be logged as it was built rather than only its meat.
+  - *"Double chicken is this row twice"* is the whole modification: the chart
+    publishes a 4 oz portion and says nothing about an 8 oz one, so the line
+    says what to log rather than a number.
+  - Page 1 of the PDF is the paper menu, whose prose repeats "CHICKEN* 180 cal
+    | 4 oz". Every locator reads after the nutrition table's own "Protein (g)"
+    heading so the prose cannot match first.
 - **Subway.** The Fresh Fit subs include multigrain bread, deluxe protein and
   all vegetables. Protein bowls use the footlong meat portion and exclude
   cheese and dressing.
@@ -101,17 +160,18 @@ published figure.
 
 ## Chains left out
 
+Re-tried on 2026-09-23, with the same ground rules: the chain's own published
+document, one plain request each, a User-Agent naming this work, no retries and
+nothing worked around.
+
 | Chain | Why |
 |---|---|
-| McDonald's | mcdonalds.com resets or stalls non-browser connections (bot protection). One WebFetch timed out. No PDF exists. Not bypassed. |
-| Burger King | bk.com's PDF URLs return an app shell. company.bk.com no longer resolves. The Nutrition Explorer loads from a Sanity/RBI GraphQL backend that would have to be reverse-engineered. An originqa.bk.com PDF is a QA host and dated 2022. |
-| Whataburger | The only published document (wbimageserver.whataburger.com/Nutrition.pdf, still the footer link) is dated **March 29, 2021**. The ordering API needs an API key from the app bundle. **Doug:** if a 2021 document is acceptable, clean rows exist (e.g. #11 Grilled Chicken Sandwich 430 kcal / 32 g). |
-| Chipotle | The newest US PDF on chipotle.com (`US-Nutrition-Facts-Paper-Menu-3-2025.pdf`) is footed **OCT-2024** and is no longer linked from any current chipotle.com page; it was found by search. The live calculator uses a keyed API. Left out for the same reason as Whataburger. **Doug:** the proteins are the kind of thing that rarely changes (Chicken 4 oz: 180 kcal, 32 g protein), so this is a judgement call. The 10 curated component rows can be re-read from that PDF in minutes. |
-| Taco Bell | tacobell.com publishes calories only. Its full nutrition is an embedded Nutritionix iframe, which the brief excludes. **Doug:** if a chain's own embedded official calculator counts as the chain's source, Taco Bell (and Sheetz) become possible. |
-| Jersey Mike's | The calculator's JSON gives unrounded per-ingredient rows; the page sums the default ingredients for its "Totals" footer. Reproducing that footer is re-running the page's arithmetic rather than reading a published figure, and the results carry values like 1153.04 mg. Left out under "don't sum components". **Doug:** the reconstruction matched the page's code exactly, so this is a policy call, not a data problem. |
-| Sheetz | sheetz.com's own HTML has only drink nutrition. Food is a Nutritionix iframe, and the ordering site sits behind Imperva. |
-| Wawa | The full calculator is behind an Incapsula 403. wawa.com's own "Calorie-Conscious" page and its PDF give kcal and protein only, and **disagree with each other** on the same items (e.g. Original Chicken Sandwich 37 g vs 41 g protein). |
-| Buc-ee's | buc-ees.com publishes no nutrition at all. |
+| McDonald's | Every mcdonalds.com path answers **HTTP 403** to a plain request - the nutrition calculator, the full menu, and the `/content/dam/.../nutrition` PDF paths alike. A WebFetch of the calculator is refused the same way. There is no US PDF on another host. Not bypassed. |
+| Taco Bell | tacobell.com is a Next.js shell; its `/nutrition/info` page renders no figures, its data routes 404, and the page's own chunk names no nutrition endpoint. The full nutrition is an embedded **Nutritionix** calculator, which the brief excludes. **Doug:** if a chain's own embedded official calculator counts as the chain's source, Taco Bell and Sheetz both become possible. |
+| Jersey Mike's | `subs.jerseymikes.com/nutrition/{product}/{size}` returns **per-ingredient rows only** - values like `136.539000` calories - and the page sums the default ingredients in the browser for its "Totals" footer. There is no published total to read; producing one means re-running the page's arithmetic. Left out under "don't sum components". **Doug:** still a policy call, not a data problem. |
+| Sheetz | sheetz.com/nutrition is server-rendered, but only for **drinks**. Food is an `m.nutritionix.com/sheetz/...` iframe. |
+| Wawa | wawa.com's own pages (`/nutrition/lower-sodium` and its siblings) publish **calories and sodium only** - no protein, fat or carbohydrate - so nothing there can fill a required field. The full calculator is still behind a 403. |
+| Buc-ee's | buc-ees.com still publishes no nutrition at all: not a figure on the site. |
 
 ## Snacks (22 products, 9 categories)
 
@@ -173,10 +233,10 @@ Snack doubts:
 ## Rules
 
 Five plain rules show on every chain (the spec's timeless ones). One
-kind-specific line each for burgers, chicken, sandwiches, coffee and
+kind-specific line each for burgers, chicken, mexican, sandwiches, coffee and
 gas-station-kitchen. Two `"snacks"` rules show only on the Gas station
-screen. The Mexican line was written but left out, because no Mexican chain
-made it; add it back with Chipotle or Taco Bell.
+screen. The Mexican line was held back in the first pass because no Mexican
+chain made it; Chipotle brings it in.
 
 ## Refresh
 

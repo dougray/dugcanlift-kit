@@ -33,7 +33,7 @@ import { dirname, join } from "node:path";
 import {
   FIELDS, compareItem, modificationSaving, findPdfRow, parseChickFilA, findChickFilARow,
   parseStarbucks, wendysRequest, parseWendysNutrition, deriveSnack, newerFdcRecords, fdcDate,
-  isStale, modifiedAfter, chainVerdict, exitCode, renderReport, renderSummary,
+  isStale, modifiedAfter, chainVerdict, exitCode, renderReport, renderSummary, statesPublished,
 } from "./check-road-food-lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -121,6 +121,19 @@ function signals(doc, checkedOn, { hashMeaningful = true } = {}) {
   return s;
 }
 
+// Does the document still state the date the bundle records for it? Only ever
+// asked of text that was actually read this run; a chain whose document states
+// no date has no `publishedOn` and nothing to check.
+function notePublished(r, chain, text) {
+  if (!chain.publishedOn) return;
+  const still = statesPublished(text, chain.publishedOn);
+  if (still === undefined) return;
+  r.publishedStated = still;
+  r.signals.push(still
+    ? `The document still states its own date as ${chain.publishedOn}.`
+    : `**The document no longer states ${chain.publishedOn}**: it has been republished, so re-read it and its \`publishedOn\` by hand.`);
+}
+
 // ------------------------------------------------------------ PDF text
 
 // PDFKit (macOS) is what the bundle was curated with, and the row locators
@@ -176,6 +189,7 @@ async function checkPdf(chain, loc, r) {
     r.items = chain.items.map((i) => ({ id: i.id, name: i.name, error: "PDF not read" }));
     return;
   }
+  notePublished(r, chain, text);
   r.items = itemsWith(chain, loc, (l) => findPdfRow(text, l, loc.columns));
 }
 
@@ -203,6 +217,7 @@ async function checkChickFilA(chain, loc, r) {
     return;
   }
   r.signals.push("The page is rebuilt on every request, so its bytes say nothing; only the numbers are compared.");
+  notePublished(r, chain, doc.body.toString("utf8"));
   r.items = itemsWith(chain, loc, (l) => findChickFilARow(parsed.rows, l));
 }
 
@@ -275,7 +290,8 @@ async function checkWendys(chain, loc, r) {
 const METHODS = { pdf: checkPdf, manual: checkManual, chickfila: checkChickFilA, starbucks: checkStarbucks, wendys: checkWendys };
 
 async function checkChain(chain) {
-  const r = { id: chain.id, name: chain.name, checkedOn: chain.checkedOn, source: chain.source, items: [], signals: [], unreachable: [] };
+  const r = { id: chain.id, name: chain.name, checkedOn: chain.checkedOn, publishedOn: chain.publishedOn,
+    source: chain.source, items: [], signals: [], unreachable: [] };
   const loc = locators.chains[chain.id];
   if (!loc || !METHODS[loc.method]) {
     r.manual = true;

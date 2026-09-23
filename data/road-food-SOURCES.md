@@ -16,19 +16,23 @@ They are not committed, because they are the chains' own files.
 
 ## Chains in the file (11 chains, 89 items)
 
-| Chain | kind | Items | Source | Read on | Source's own date |
-|---|---|---|---|---|---|
-| Wendy's | burgers | 7 | `api.app.prd.wendys.digital/.../NutritionServices/rest/nutritionalData` (the API order.wendys.com's nutrition panel calls) | 2026-09-20 | menu generated 2026-09-21T00:02 UTC |
-| Sonic | burgers | 7 | Nutrition brochure PDF linked from sonicdrivein.com/nutrition-allergen/ (Contentful asset host) | 2026-09-20 | "Summer 2026", file named September |
-| Burger King | burgers | 9 | `bk-use1-prod.sites.rbictg.com/nutrition/nutrition.pdf` (RBI's production host for bk.com, the same host Popeyes' PDF sits on) | 2026-09-23 | **NOVEMBER 2022**; Last-Modified 2022-12-02 |
-| Whataburger | burgers | 9 | https://wbimageserver.whataburger.com/Nutrition.pdf | 2026-09-23 | **"as of March 29, 2021"** |
-| Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-09-20 | none shown |
-| Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-09-20 | "current as of August 2026" |
-| Chipotle | mexican | 9 | https://www.chipotle.com/content/dam/chipotle/menu/nutrition/US-Nutrition-Facts-Paper-Menu-3-2025.pdf | 2026-09-23 | **footed OCT-2024**; Last-Modified 2025-03-05 |
-| Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | January 2026 |
-| Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | none shown |
-| Panera Bread | coffee | 8 | https://www.panerabread.com/content/dam/panerabread/documents/c8-26-nutrition-guide.pdf | 2026-09-20 | effective 9/2/2026, edition 1 |
-| QuikTrip | gas-station-kitchen | 8 | https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf (linked from quiktrip.com product pages) | 2026-09-20 | PDF dated 2025-09-12 |
+`Read on` is the chain's `checkedOn`; `publishedOn` is the date the document
+states about itself, blank when it states none. See "Published on" in
+`README.md` for why metadata, `Last-Modified` and upload paths do not count.
+
+| Chain | kind | Items | Source | Read on | `publishedOn` | What the document says about its own date |
+|---|---|---|---|---|---|---|
+| Wendy's | burgers | 7 | `api.app.prd.wendys.digital/.../NutritionServices/rest/nutritionalData` (the API order.wendys.com's nutrition panel calls) | 2026-09-20 | — | menu generated 2026-09-21T00:02 UTC — a live feed, which states no date of publication |
+| Sonic | burgers | 7 | Nutrition brochure PDF linked from sonicdrivein.com/nutrition-allergen/ (Contentful asset host) | 2026-09-20 | — | "SUMMER 2026" — a season, not a month; the file is named September and its properties say September 2026, neither of which is the document speaking |
+| Burger King | burgers | 9 | `bk-use1-prod.sites.rbictg.com/nutrition/nutrition.pdf` (RBI's production host for bk.com, the same host Popeyes' PDF sits on) | 2026-09-23 | 2022-11 | **"BURGER KING® USA Nutrition Information — NOVEMBER 2022"**, on every page |
+| Whataburger | burgers | 9 | https://wbimageserver.whataburger.com/Nutrition.pdf | 2026-09-23 | 2021-03-29 | **"Nutritional information as of March 29, 2021"** (the file itself was created 2021-02-02; the printed statement is later and wins) |
+| Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-09-20 | — | none shown |
+| Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-09-20 | 2026-08 | "Popeyes® USA Nutrition Guide — August 2026", and "current as of August 2026" in the footnote (the file properties still say "Nutrition FEBRUARY 2023", a stale template title) |
+| Chipotle | mexican | 9 | https://www.chipotle.com/content/dam/chipotle/menu/nutrition/US-Nutrition-Facts-Paper-Menu-3-2025.pdf | 2026-09-23 | 2024-10 | **footer code `OCT-2024-US-CK`** |
+| Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | 2026-01 | "U.S. NUTRITION INFORMATION — January 2026" |
+| Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | — | none shown |
+| Panera Bread | coffee | 8 | https://www.panerabread.com/content/dam/panerabread/documents/c8-26-nutrition-guide.pdf | 2026-09-20 | 2026-09-02 | "Effective: 9/2/2026 Edition: 1", on every page |
+| QuikTrip | gas-station-kitchen | 8 | https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf (linked from quiktrip.com product pages) | 2026-09-20 | — | none printed anywhere in the document; its file properties say 2025-09-12 and its URL path says 2025/09, neither of which is the document speaking |
 
 The exact `source` URL for each chain is in the JSON.
 
@@ -74,12 +78,13 @@ published figure.
   Popeyes' PDF sits on, and it is the only Burger King nutrition document that
   answers a plain request: bk.com/nutrition-explorer and every bk.com PDF path
   return the app shell, and company.bk.com no longer resolves.
-  - **The document is dated NOVEMBER 2022** (Last-Modified 2022-12-02). It is
-    what Burger King publishes today, and the nine items are rows a
-    four-year-old chart is least likely to have moved on - the plain burgers,
-    nuggets and Chicken Fries - but four years is four years. **Doug: this is
-    the one to say yes or no to.** The app will show "checked 2026-09-23",
-    which is when the document was read, not when Burger King wrote it.
+  - **The document is dated NOVEMBER 2022** (Last-Modified 2022-12-02), so
+    `publishedOn` is `2022-11`. It is what Burger King publishes today, and the
+    nine items are rows a four-year-old chart is least likely to have moved on
+    - the plain burgers, nuggets and Chicken Fries - but four years is four
+    years. The apps say so in words: the chain page reads "Published Nov 2022 ·
+    checked Sep 23, 2026" and warns "These numbers are from the chain's chart
+    dated Nov 2022."
   - *"Hold the cheese to save 40 kcal"* is read off the chart's own rows, not
     guessed: Cheeseburger 290 minus Hamburger 250, Double Cheeseburger 400
     minus Double Hamburger 360, and American Cheese (2 slices) 80 kcal. All
@@ -99,10 +104,13 @@ published figure.
   shell and whataburger.com/files/Nutrition.pdf redirects into it. The ordering
   API needs a key from the app bundle and was not touched.
   - **The document says "Nutritional information as of March 29, 2021."** Five
-    and a half years. **Doug: this is the weakest link in the file.** Every
+    and a half years, so `publishedOn` is `2021-03-29` and every screen says
+    "Published Mar 29, 2021". **This is the weakest link in the file.** Every
     item chosen avoids the `*` (limited market) and `†` (limited time) marks,
     which is the best that can be done from inside the document, but a 2021
-    chart cannot know what left the menu in 2024.
+    chart cannot know what left the menu in 2024. The file itself was created
+    2021-02-02; the printed statement is nearly two months later, which is why
+    the printed statement is the one recorded.
   - Salads: the chart lists dressings in their own "DIPPING SAUCES &
     DRESSINGS" section and says nothing about whether a salad row includes one.
     The serving text says "dressing listed separately", which is what the
@@ -115,7 +123,10 @@ published figure.
   live calculator is a keyed API (`Ocp-Apim-Subscription-Key` out of the order
   site's bundle) and was not used: a key lifted from someone else's page is not
   a published source.
-  - **The document is footed OCT-2024** (Last-Modified 2025-03-05).
+  - **The document is footed OCT-2024** (Last-Modified 2025-03-05), so
+    `publishedOn` is `2024-10` and the screens read "Published Oct 2024". The
+    file name says 3-2025 and the server says March 2025; the footer is the
+    document's own statement and wins over both.
   - **The rows are components, not meals**, which is how Chipotle publishes and
     how a bowl is actually ordered. Nothing is summed. Cilantro-Lime Brown Rice
     is in the list at 1.9 g of protein per 100 kcal, last in any ranking, so a

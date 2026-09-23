@@ -3,6 +3,7 @@
 | File | What it is |
 |---|---|
 | `road-food.json` | The bundled chains, items, snacks and rules the apps read. Edited by hand only. |
+| `road-food.sha256` | The sha256 of `road-food.json`'s bytes. Written by the validator, never by hand. |
 | `road-food-SOURCES.md` | Where every number came from, when, how it was read, and every doubt. |
 | `validate-road-food.mjs` | Shape and honesty checks on the JSON. |
 | `check-road-food.mjs` | The refresh check: have the chains' published numbers moved? |
@@ -50,11 +51,53 @@ the rest. `road-food-SOURCES.md` records what each document does say.
 node data/validate-road-food.mjs
 ```
 
+## The copies, and the checksum that holds them together
+
+`road-food.json` is curated here and copied byte for byte into five app repos:
+
+| Repo | Path |
+|---|---|
+| `dugcanlift-site` | `lift/road-food.json` |
+| `dugcanlift-coach` | `coach/road-food.json` |
+| `dugcanlift-lift` | `app/src/main/assets/road-food.json` |
+| `lift-ios` | `Resources/road-food.json` |
+| `coach-ios` | `Resources/road-food.json` |
+
+(`dugcanlift-site/coach/road-food.json` is a sixth copy, but `deploy.sh` in
+`dugcanlift-coach` writes it from that repo's copy; nobody edits it.)
+
+Item ids are the contract a coach's road picks travel on, so a copy that has
+quietly fallen behind is a real failure, not an untidiness — and one that
+every app-side shape check passes, because a three-chains-behind file is
+perfectly valid. All six copies match today — they were compared when this was
+written — and the point is that nothing would say if they stopped.
+
+So `road-food.sha256` travels with the file. Each app repo commits it beside
+its copy and asserts, in the test suite its CI already runs, that the bytes it
+actually bundles hash to it. The hash is one bare line of 64 hex characters
+and nothing else, so node, Kotlin and Swift each read it back without a parser
+and no path inside it can go stale.
+
+### Changing the data
+
+```sh
+node data/validate-road-food.mjs --write-checksum
+```
+
+The validator refuses a `road-food.sha256` that no longer matches, so this is
+a step you cannot skip and a hash nobody types by hand. It also refuses to
+*write* one over a bundle that fails its own checks: a frozen hash over a
+broken file would be copied into five repos that then all agree with it.
+
+Then copy **both files together** into each repo above, and open a PR there.
+Copying the JSON without the checksum fails that repo's tests, which is the
+point.
+
 ## Refresh check
 
 ```sh
 node data/check-road-food.mjs     # fetches every source, writes data/road-food-CHECK.md
-node --test data/                 # unit tests, no network
+node --test data/*.test.mjs       # unit tests, no network
 ```
 
 For each chain the check fetches the source SOURCES.md records, once, with a
@@ -124,5 +167,6 @@ ships the data:
 6. **Document date moved:** the check reports a chain whose document no longer
    states the date `publishedOn` records, which means the chain republished.
    Re-read the document and its date by hand, and update both fields.
-7. `node data/validate-road-food.mjs`, then ship the change with the apps like
-   any other.
+7. `node data/validate-road-food.mjs --write-checksum`, then copy
+   `road-food.json` and `road-food.sha256` into each app repo together and
+   ship the change with the apps like any other.

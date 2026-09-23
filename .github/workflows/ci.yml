@@ -31,3 +31,29 @@ jobs:
       # line above it. Fail on the exit code, not on that summary.
       - name: Unit tests
         run: swift test
+
+  data:
+    name: Road Food data
+    # Plain node, no Xcode: this job is the one that fails when road-food.json
+    # and road-food.sha256 disagree, which is what the five app repos pin their
+    # copies to. Ubuntu because nothing here reads a PDF or touches the network.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: "24"
+
+      # Shape and honesty checks, plus the checksum. A stale checksum fails
+      # here rather than months later in an app repo that took the file but
+      # not the hash.
+      - name: Validate road-food.json
+        run: node data/validate-road-food.mjs
+
+      # The files are listed by glob rather than as "data/", because node 24
+      # reads a bare directory as a module to load and fails; node 26 walks it.
+      # Spelling out the files works on both, and is what data/README.md says.
+      - name: Data unit tests
+        run: node --test data/*.test.mjs

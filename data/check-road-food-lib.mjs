@@ -291,10 +291,15 @@ export function newerFdcRecords(full) {
 
 // ---------------------------------------------------------------- dates
 
-// Six calendar months, not 182 days.
+// Six calendar months, not 182 days. 31 March plus six months is 30 September,
+// clamped to the month's end, which is what all three apps do
+// (`road-food.js`, `RoadFood.kt`, `RoadFoodRanking.swift`). Date.UTC on its own
+// rolls that to 1 October, so this clamps it back rather than disagreeing with
+// every screen that shows the answer.
 export function isStale(checkedOn, today) {
   const [y, m, d] = checkedOn.split("-").map(Number);
   const limit = new Date(Date.UTC(y, m - 1 + 6, d));
+  if (limit.getUTCDate() !== d) limit.setUTCDate(0);
   return new Date(today + "T00:00:00Z") > limit;
 }
 

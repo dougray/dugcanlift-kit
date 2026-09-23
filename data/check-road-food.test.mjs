@@ -238,6 +238,11 @@ test("stale means more than six calendar months", () => {
   assert.equal(isStale("2026-03-21", "2026-09-21"), false);
   assert.equal(isStale("2026-03-20", "2026-09-21"), true);
   assert.equal(isStale("2026-09-20", "2026-09-21"), false);
+  // The month's end clamps, it does not roll: 31 March plus six months is
+  // 30 September, as road-food.js, RoadFood.kt and RoadFoodRanking.swift all
+  // have it. Date.UTC alone would make this pair false/false.
+  assert.equal(isStale("2026-03-31", "2026-09-30"), false);
+  assert.equal(isStale("2026-03-31", "2026-10-01"), true);
 });
 
 test("Last-Modified is compared with checkedOn by date", () => {

@@ -52,5 +52,8 @@ jobs:
       - name: Validate road-food.json
         run: node data/validate-road-food.mjs
 
+      # The files are listed by glob rather than as "data/", because node 24
+      # reads a bare directory as a module to load and fails; node 26 walks it.
+      # Spelling out the files works on both, and is what data/README.md says.
       - name: Data unit tests
-        run: node --test data/
+        run: node --test data/*.test.mjs

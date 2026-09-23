@@ -97,7 +97,7 @@ point.
 
 ```sh
 node data/check-road-food.mjs     # fetches every source, writes data/road-food-CHECK.md
-node --test data/                 # unit tests, no network
+node --test data/*.test.mjs       # unit tests, no network
 ```
 
 For each chain the check fetches the source SOURCES.md records, once, with a

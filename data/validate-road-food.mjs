@@ -1,18 +1,30 @@
 #!/usr/bin/env node
-// Checks data/road-food.json against the Road Food spec's shape.
-// Usage: node data/validate-road-food.mjs [path]   (exit 1 on any error)
+// Checks data/road-food.json against the Road Food spec's shape, and against
+// the checksum the five app repos pin their copies to.
+// Usage: node data/validate-road-food.mjs [path] [--write-checksum]
+//   (exit 1 on any error; --write-checksum re-writes road-food.sha256 from a
+//   clean run, which is the only way that file is ever written)
 //
 // Errors are shape and honesty failures: a missing required field, a
 // non-number, a null or string standing in for a number, a duplicate id, a
 // chain without source/checkedOn, an unknown key (usually a typo that would
 // silently drop a value). Warnings are for a human: a published figure that
 // does not add up (energy vs. macros), or a zero worth a second look.
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
-const path = process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), "road-food.json");
-const data = JSON.parse(readFileSync(path, "utf8"));
+// Flags are picked out by name, so --write-checksum may come on either side of
+// the optional path.
+const args = process.argv.slice(2);
+const writeChecksum = args.includes("--write-checksum");
+const CURATED = join(dirname(fileURLToPath(import.meta.url)), "road-food.json");
+const path = args.find((a) => !a.startsWith("--")) ?? CURATED;
+// Read as bytes, not as text. The checksum the apps pin is over the file they
+// bundle; a string decoded and re-encoded is not guaranteed to be those bytes.
+const bytes = readFileSync(path);
+const data = JSON.parse(bytes.toString("utf8"));
 const errors = [];
 const warnings = [];
 const err = (where, msg) => errors.push(`${where}: ${msg}`);
@@ -165,9 +177,47 @@ for (const [i, r] of (data.rules ?? []).entries()) {
 }
 if (!snackRules) warn("rules", `no rule has kind "${SNACKS_KIND}", so the Gas station screen shows none`);
 
+// The checksum the five app repos pin their copy against. `road-food.sha256`
+// holds one line -- the sha256 of road-food.json's bytes and nothing else --
+// so node, Kotlin and Swift can each read it back without a parser, and no
+// path inside it can go stale when a repo keeps the file somewhere else.
+//
+// A stale checksum is an error because the whole point is that it moves with
+// the file: a curator who edits the data and forgets --write-checksum would
+// otherwise hand the apps a hash pinning the bundle before the edit.
+//
+// Only the curated file must carry one. Validating anything else -- a bundle
+// someone is drafting, or an app repo's copy -- checks a checksum that sits
+// beside it and stays quiet when none does.
+const checksumPath = path.replace(/\.json$/, ".sha256");
+const actualSum = createHash("sha256").update(bytes).digest("hex");
+const expectedSum = existsSync(checksumPath) ? readFileSync(checksumPath, "utf8").trim() : null;
+if (!writeChecksum) {
+  if (expectedSum === null) {
+    if (path === CURATED) err("checksum", `no ${basename(checksumPath)} beside the file (write one with --write-checksum)`);
+  } else if (!/^[0-9a-f]{64}$/.test(expectedSum)) {
+    err("checksum", `${basename(checksumPath)} is not a sha256 (write it with --write-checksum, never by hand)`);
+  } else if (expectedSum !== actualSum) {
+    err("checksum", `${basename(checksumPath)} is stale: it pins ${expectedSum.slice(0, 12)}..., the file hashes to ${actualSum.slice(0, 12)}...`
+      + " (re-run with --write-checksum, then copy both files to the apps)");
+  }
+}
+
 const items = (data.chains ?? []).reduce((a, c) => a + (c.items?.length ?? 0), 0);
 console.log(`${data.chains?.length ?? 0} chains, ${items} items, ${data.snacks?.length ?? 0} snacks, ${data.rules?.length ?? 0} rules`);
 for (const w of warnings) console.log(`warning  ${w}`);
 for (const e of errors) console.log(`ERROR    ${e}`);
+// Written last, and only from an otherwise clean run: a checksum taken over a
+// bundle that fails its own shape checks would freeze that failure into five
+// app repos the moment someone copied both files across.
+if (writeChecksum) {
+  if (errors.length) console.log(`REFUSED to write ${basename(checksumPath)}: fix the ${errors.length} error(s) first`);
+  else if (expectedSum === actualSum) console.log(`${basename(checksumPath)} already matches ${actualSum.slice(0, 12)}...`);
+  else {
+    writeFileSync(checksumPath, actualSum + "\n");
+    console.log(`wrote ${basename(checksumPath)}: ${actualSum}`);
+    console.log("copy road-food.json and road-food.sha256 together into each app repo");
+  }
+}
 console.log(errors.length ? `FAILED: ${errors.length} error(s)` : `OK (${warnings.length} warning(s))`);
 process.exit(errors.length ? 1 : 0);

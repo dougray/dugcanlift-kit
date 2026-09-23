@@ -21,7 +21,7 @@ const warn = (where, msg) => warnings.push(`${where}: ${msg}`);
 const NUMERIC = ["kcal", "proteinG", "fatG", "carbsG", "fiberG", "saturatedFatG", "sugarG", "sodiumMg"];
 const REQUIRED_NUMERIC = ["kcal", "proteinG", "fatG", "carbsG"];
 const ITEM_KEYS = new Set(["id", "name", "serving", ...NUMERIC, "modification"]);
-const CHAIN_KEYS = new Set(["id", "name", "kind", "checkedOn", "source", "items"]);
+const CHAIN_KEYS = new Set(["id", "name", "kind", "publishedOn", "checkedOn", "source", "items"]);
 const KIND = /^[a-z]+(-[a-z]+)*$/;
 // The Gas station screen shows only rules whose kinds include "snacks", so no
 // chain may claim that kind or snack rules would reach its screen too.
@@ -36,6 +36,15 @@ const ids = new Set();
 const isDate = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s)
   && !Number.isNaN(Date.parse(s + "T00:00:00Z"))
   && new Date(s + "T00:00:00Z").toISOString().startsWith(s);
+// `publishedOn` is the date the source document states about itself, so it is
+// as precise as the document is and no more: a full day, or a month when the
+// document names only a month. A document that states no date at all has no
+// key. See "Published on" in README.md.
+const isDocDate = (s) => isDate(s) || (typeof s === "string" && /^\d{4}-\d{2}$/.test(s)
+  && Number(s.slice(5)) >= 1 && Number(s.slice(5)) <= 12);
+// A month-only date is read as the first of that month everywhere, which can
+// only ever make a document look older, never fresher.
+const docDateDay = (s) => (s.length === 7 ? s + "-01" : s);
 const isURL = (s) => { try { return new URL(s).protocol === "https:"; } catch { return false; } };
 const nonEmpty = (s) => typeof s === "string" && s.trim().length > 0 && s === s.trim();
 
@@ -97,6 +106,11 @@ for (const [i, ch] of (data.chains ?? []).entries()) {
     else if (ch.kind === SNACKS_KIND) err(w, `kind "${SNACKS_KIND}" is reserved for the Gas station snack screen`);
   } else warn(w, "no kind, so only plain-string rules will show on it");
   if (!isDate(ch.checkedOn)) err(w, `checkedOn ${JSON.stringify(ch.checkedOn)} is not YYYY-MM-DD`);
+  if ("publishedOn" in ch) {
+    if (!isDocDate(ch.publishedOn)) err(w, `publishedOn ${JSON.stringify(ch.publishedOn)} is not YYYY-MM-DD or YYYY-MM (omit the key when the document states no date)`);
+    // A document cannot have been published after the day someone read it.
+    else if (isDate(ch.checkedOn) && docDateDay(ch.publishedOn) > ch.checkedOn) err(w, `publishedOn ${ch.publishedOn} is after checkedOn ${ch.checkedOn}`);
+  }
   if (!isURL(ch.source)) err(w, `source ${JSON.stringify(ch.source)} is not an https URL`);
   if (!Array.isArray(ch.items) || ch.items.length === 0) { err(w, "no items"); continue; }
   if (ch.items.length < 5 || ch.items.length > 10) warn(w, `${ch.items.length} items (spec: 5-10)`);

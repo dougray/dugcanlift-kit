@@ -9,6 +9,7 @@ import {
   compareItem, modificationSaving, normaliseLabel, findPdfRow, parseChickFilA, findChickFilARow,
   parseStarbucks, wendysRequest, parseWendysNutrition, deriveSnack, labelRound, fdcDate,
   newerFdcRecords, isStale, modifiedAfter, chainVerdict, exitCode, renderReport, renderSummary,
+  dateStatements, statesPublished, docDateDay, monthsOld,
 } from "./check-road-food-lib.mjs";
 
 const item = (over = {}) => ({ id: "x-item", name: "Item", serving: "1", kcal: 300, proteinG: 20, fatG: 10, carbsG: 30,
@@ -238,6 +239,45 @@ test("stale means more than six calendar months", () => {
   assert.equal(isStale("2026-03-21", "2026-09-21"), false);
   assert.equal(isStale("2026-03-20", "2026-09-21"), true);
   assert.equal(isStale("2026-09-20", "2026-09-21"), false);
+  // The month's end clamps, it does not roll: 31 March plus six months is
+  // 30 September, as road-food.js, RoadFood.kt and RoadFoodRanking.swift all
+  // have it. Date.UTC alone would make this pair false/false.
+  assert.equal(isStale("2026-03-31", "2026-09-30"), false);
+  assert.equal(isStale("2026-03-31", "2026-10-01"), true);
+  // A month-only document date is measured from the first of that month.
+  assert.equal(isStale("2026-03", "2026-09-01"), false);
+  assert.equal(isStale("2026-03", "2026-09-02"), true);
+});
+
+test("a month-only document date is read as the first of that month", () => {
+  assert.equal(docDateDay("2022-11"), "2022-11-01");
+  assert.equal(docDateDay("2021-03-29"), "2021-03-29");
+  // Which can only ever make a document look older, never fresher.
+  assert.equal(monthsOld("2022-11", "2023-05-01"), 6);
+  assert.equal(monthsOld("2022-11-30", "2023-05-01"), 5);
+});
+
+test("a document's age is whole calendar months, rounded down", () => {
+  assert.equal(monthsOld("2026-09-02", "2026-09-23"), 0);
+  assert.equal(monthsOld("2026-01", "2026-09-23"), 8);
+  assert.equal(monthsOld("2021-03-29", "2026-09-23"), 65);
+});
+
+test("every way a document plausibly prints its own date is looked for", () => {
+  // The four real shapes in the bundle, each as its document prints it.
+  assert.equal(statesPublished("BURGER KING® USA Nutrition Information\nNOVEMBER 2022", "2022-11"), true);
+  assert.equal(statesPublished("©2021 Whatabrands LLC Nutritional information as of March 29, 2021", "2021-03-29"), true);
+  assert.equal(statesPublished("OCT-2024-US-CK", "2024-10"), true);
+  assert.equal(statesPublished("Effective: 9/2/2026 Edition: 1", "2026-09-02"), true);
+  // A line break inside the statement, which PDF text puts there freely.
+  assert.equal(statesPublished("U.S. NUTRITION INFORMATION\nJanuary\n 2026", "2026-01"), true);
+  // A month-only record is not satisfied by some other month of the same year.
+  assert.equal(statesPublished("NOVEMBER 2022", "2022-03"), false);
+  assert.equal(dateStatements("2022-11").includes("november 2022"), true);
+  // Nothing to read, and nothing recorded, are both "no answer", never false.
+  assert.equal(statesPublished("NOVEMBER 2022", undefined), undefined);
+  assert.equal(statesPublished("", "2022-11"), undefined);
+  assert.equal(statesPublished(undefined, "2022-11"), undefined);
 });
 
 test("Last-Modified is compared with checkedOn by date", () => {
@@ -267,12 +307,32 @@ test("a manual source is never reported unchanged, but the report says whether i
   assert.match(md(undefined), /Can't tell whether the document changed: re-read by hand/);
 });
 
+test("the report gives each chain's document date, its age, and whether it still says it", () => {
+  const results = [
+    { ...chain({ id: "bk", name: "Burger King", publishedOn: "2022-11", publishedStated: true, items: [] }), verdict: "unchanged" },
+    { ...chain({ id: "qt", name: "QuikTrip", items: [] }), verdict: "unchanged" },
+    { ...chain({ id: "sw", name: "Subway", publishedOn: "2026-01", publishedStated: false, items: [] }), verdict: "unchanged" },
+  ];
+  const md = renderReport({ results, stale: [], validator: { code: 0, output: "" },
+    ranAt: "2026-09-23T00:00:00Z", bundle: { chains: 3, items: 0, snacks: 0 } });
+  assert.match(md, /\| Burger King \| 2022-11 \| 46 months \| yes \|/);
+  // A chain whose document states no date is said so plainly, not left blank.
+  assert.match(md, /\| QuikTrip \| - \| - \| the document states no date \|/);
+  assert.match(md, /\| Subway \| 2026-01 \| 8 months \| \*\*NO - re-read it by hand\*\* \|/);
+  assert.match(renderSummary(results, [], { code: 0, output: "" }), /DOCUMENT DATE MOVED\s+Subway: no longer states 2026-01/);
+});
+
 test("exit code: 1 for changed or unreachable, 0 for manual, 2 for a validator failure alone", () => {
   const ok = { code: 0, output: "" };
   assert.equal(exitCode([{ verdict: "unchanged" }, { verdict: "manual" }], ok), 0);
   assert.equal(exitCode([{ verdict: "changed" }], ok), 1);
   assert.equal(exitCode([{ verdict: "unreachable" }], ok), 1);
   assert.equal(exitCode([{ verdict: "manual" }], { code: 1, output: "" }), 2);
+  // A document that no longer states its recorded date has been republished:
+  // publishedOn is now wrong, which is as serious as a number that moved.
+  assert.equal(exitCode([{ verdict: "unchanged", publishedStated: false }], ok), 1);
+  assert.equal(exitCode([{ verdict: "unchanged", publishedStated: true }], ok), 0);
+  assert.equal(exitCode([{ verdict: "unchanged", publishedStated: undefined }], ok), 0);
 });
 
 // ------------------------------------------------------------- report

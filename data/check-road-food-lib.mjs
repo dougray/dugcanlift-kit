@@ -291,11 +291,63 @@ export function newerFdcRecords(full) {
 
 // ---------------------------------------------------------------- dates
 
-// Six calendar months, not 182 days.
-export function isStale(checkedOn, today) {
-  const [y, m, d] = checkedOn.split("-").map(Number);
+// Six calendar months, not 182 days. 31 March plus six months is 30 September,
+// clamped to the month's end, which is what all three apps do
+// (`road-food.js`, `RoadFood.kt`, `RoadFoodRanking.swift`). Date.UTC on its own
+// rolls that to 1 October, so this clamps it back rather than disagreeing with
+// every screen that shows the answer.
+export function isStale(day, today) {
+  const [y, m, d] = docDateDay(day).split("-").map(Number);
   const limit = new Date(Date.UTC(y, m - 1 + 6, d));
+  if (limit.getUTCDate() !== d) limit.setUTCDate(0);
   return new Date(today + "T00:00:00Z") > limit;
+}
+
+const MONTHS = ["january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"];
+
+// Every way a document plausibly prints the date the bundle records for it.
+// `publishedOn` is "YYYY-MM-DD" or "YYYY-MM"; a month-only date gets only the
+// month-and-year renderings, because that is all the document said.
+export function dateStatements(publishedOn) {
+  const [y, m, d] = publishedOn.split("-");
+  const full = MONTHS[Number(m) - 1];
+  const abbr = full.slice(0, 3);
+  const out = [`${y}-${m}`, `${full} ${y}`, `${abbr} ${y}`, `${abbr}-${y}`,
+    `${Number(m)}/${y}`, `${m}/${y}`];
+  if (d) {
+    const dn = Number(d);
+    out.push(publishedOn, `${full} ${dn}, ${y}`, `${abbr} ${dn}, ${y}`, `${full} ${dn} ${y}`,
+      `${dn} ${full} ${y}`, `${dn} ${abbr} ${y}`,
+      `${Number(m)}/${dn}/${y}`, `${Number(m)}/${d}/${y}`, `${m}/${dn}/${y}`, `${m}/${d}/${y}`);
+  }
+  return out;
+}
+
+// Does the document still say about itself what `publishedOn` records? True,
+// false, or undefined when there is nothing to read. This only ever asks
+// whether the recorded statement is still there: it never reads a new date out
+// of the document, because a wrong date read by machine is worse than a
+// missing one a person goes and looks up.
+export function statesPublished(text, publishedOn) {
+  if (!publishedOn || typeof text !== "string" || !text.trim()) return undefined;
+  const hay = text.toLowerCase().replace(/\s+/g, " ");
+  return dateStatements(publishedOn).some((c) => hay.includes(c.toLowerCase()));
+}
+
+// A month-only date is read as the first of that month, which can only ever
+// make a document look older, never fresher. The apps do exactly the same.
+export function docDateDay(publishedOn) {
+  return publishedOn.length === 7 ? `${publishedOn}-01` : publishedOn;
+}
+
+// Whole calendar months between a document's own date and today, rounded down.
+export function monthsOld(publishedOn, today) {
+  const [y, m, d] = docDateDay(publishedOn).split("-").map(Number);
+  const [ty, tm, td] = today.split("-").map(Number);
+  let n = (ty - y) * 12 + (tm - m);
+  if (td < d) n -= 1;
+  return n;
 }
 
 // "Last-Modified" is the server's own claim; it can only ever say "not
@@ -327,6 +379,9 @@ export function chainVerdict(r) {
 }
 
 export function exitCode(results, validator) {
+  // A document that no longer states the date the bundle records has been
+  // republished: `publishedOn` is now wrong, which is a number-grade error.
+  if (results.some((r) => r.publishedStated === false)) return 1;
   if (results.some((r) => ["changed", "unreachable"].includes(r.verdict))) return 1;
   if (validator && validator.code !== 0) return 2;
   return 0;
@@ -365,6 +420,22 @@ export function renderReport({ results, stale, validator, ranAt, bundle, pdfExtr
         : r.verdict === "manual" ? manualNote(r)
           : "every number matches";
     out.push(`| ${r.name} | ${HEAD[r.verdict]} | ${r.checkedOn} | ${compared} of ${r.items.length} | ${note.replace(/\|/g, "\\|")} |`);
+  }
+  out.push("");
+
+  out.push("## Document dates", "");
+  out.push("What each chain's own document says about its own date (`publishedOn`), and whether");
+  out.push("it still says it. A document that states no date has no `publishedOn`, and the apps");
+  out.push("fall back to `checkedOn` for it.", "");
+  out.push("| Source | publishedOn | Age | Still stated? |", "|---|---|---|---|");
+  for (const r of results) {
+    if (r.id === "snacks") continue;
+    const m = r.publishedOn ? monthsOld(r.publishedOn, ranAt.slice(0, 10)) : undefined;
+    const age = m === undefined ? "-" : `${m} month${m === 1 ? "" : "s"}`;
+    const still = r.publishedOn === undefined ? "the document states no date"
+      : r.publishedStated === undefined ? "not read this run"
+        : r.publishedStated ? "yes" : "**NO - re-read it by hand**";
+    out.push(`| ${r.name} | ${r.publishedOn ?? "-"} | ${age} | ${still} |`);
   }
   out.push("");
 
@@ -409,6 +480,9 @@ export function renderSummary(results, stale, validator) {
       if (i.missing) lines.push(`    ${i.id}: ${i.missing}`);
       for (const d of i.diffs ?? []) lines.push(`    ${i.id}: ${d.label ?? LABEL[d.field] ?? d.field} ${fmt(d.old)} -> ${fmt(d.now)}`);
     }
+  }
+  for (const r of results) {
+    if (r.publishedStated === false) lines.push(`DOCUMENT DATE MOVED          ${r.name}: no longer states ${r.publishedOn}`);
   }
   for (const s of stale) lines.push(`STALE                        ${s.name}: checked ${s.checkedOn}`);
   lines.push(`validator                    exit ${validator.code}`);

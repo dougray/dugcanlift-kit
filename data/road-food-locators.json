@@ -127,6 +127,25 @@
         "whataburger-double-meat-whataburger-jr": { "row": "#8 Double Meat Whataburger Jr.\u00ae" }
       }
     },
+    "tacobell": {
+      "method": "nutritionix",
+      "embed": "nutritionix.com/taco-bell/menu/premium",
+      "gridUrl": "https://www.nutritionix.com/taco-bell/menu/premium",
+      "columns": ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "_", "proteinG"],
+      "note": "The figures come from the Nutritionix calculator tacobell.com/nutrition/info embeds; the embed itself is checked first, because it is what makes these Taco Bell's own published figures.",
+      "items": {
+        "tacobell-crispy-chicken-nuggets-5-piece": { "row": "Crispy Chicken Nuggets - 5 Piece" },
+        "tacobell-crispy-chicken-nuggets-10-piece": { "row": "Crispy Chicken Nuggets - 10 Piece" },
+        "tacobell-soft-taco-chicken": { "row": "Soft Taco - Chicken" },
+        "tacobell-soft-taco-supreme-chicken": { "row": "Soft Taco Supreme\u00ae - Chicken" },
+        "tacobell-3-cheese-chicken-flatbread-melt": { "row": "3-Cheese Chicken Flatbread Melt" },
+        "tacobell-crispy-chicken-strips-2-piece": { "row": "Crispy Chicken Strips - 2 piece" },
+        "tacobell-cantina-chicken-rolled-quesadilla": { "row": "Cantina Chicken Rolled Quesadilla" },
+        "tacobell-cantina-chicken-soft-taco": { "row": "Cantina Chicken Soft Taco" },
+        "tacobell-burrito-supreme-chicken": { "row": "Burrito Supreme\u00ae - Chicken" },
+        "tacobell-cantina-chicken-bowl": { "row": "Cantina Chicken Bowl" }
+      }
+    },
     "chipotle": {
       "method": "pdf",
       "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
@@ -141,6 +160,24 @@
         "chipotle-supergreens-salad-mix": { "row": "Supergreens Salad Mix", "after": "Protein (g)" },
         "chipotle-fajita-vegetables": { "row": "Fajita Vegetables", "after": "Protein (g)" },
         "chipotle-cilantro-lime-brown-rice": { "row": "Cilantro-Lime Brown Rice", "after": "Protein (g)" }
+      }
+    },
+    "sheetz": {
+      "method": "nutritionix",
+      "embed": "nutritionix.com/sheetz/nutrition-calculator/premium",
+      "gridUrl": "https://www.nutritionix.com/sheetz/menu/premium",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "_", "proteinG"],
+      "note": "sheetz.com/nutrition embeds the calculator form of this widget; the grid is the same widget's whole menu. Sheetz repeats an item in every section it belongs to, which is fine while the repeats agree.",
+      "items": {
+        "sheetz-grilled-chicken-breast-filet": { "row": "Grilled Chicken Breast Filet" },
+        "sheetz-protein-parm-sub-half": { "row": "Protein Parm Sub - Half" },
+        "sheetz-chicken-and-rice-bowl": { "row": "Chicken & Rice Bowl" },
+        "sheetz-skinny-grilled-chicken-half": { "row": "Skinny Grilled Chicken - Half" },
+        "sheetz-farmhouse-cheddar-flatbread": { "row": "Farmhouse Cheddar Flatbread" },
+        "sheetz-catina-bowl": { "row": "Catina Bowl" },
+        "sheetz-wildwest-flatbread": { "row": "Wildwest Flatbread" },
+        "sheetz-mexican-keto-cup": { "row": "Mexican Keto Cup" },
+        "sheetz-primo-turkey-sub-half": { "row": "Primo Turkey Sub - Half" }
       }
     },
     "quiktrip": {

@@ -284,7 +284,7 @@ worth scanning a few products in hand against the file.**
 |---|---|
 | Beef jerky and meat sticks | Jack Link's Original Beef Jerky (2675686, 2023-11); Chomps Original Beef Stick (2652237, 2023-10) |
 | Protein bars | Quest S'mores (2669774, 2023-11); Pure Protein S'mores (2545908, 2023-05); Premier Protein Salted Caramel (1926282, 2021-07); RXBAR Blueberry (2659057, 2023-10) |
-| Greek yogurt | Oikos Triple Zero Mixed Berry (2775572, 2026-08); Oikos Plain Nonfat (2619049, 2023-08) |
+| Greek yogurt | Oikos Triple Zero Mixed Berry (2778000, 2026-09); Oikos Plain Nonfat (2619049, 2023-08) |
 | String cheese | Sargento Light (2622114, 2023-08); Frigo Cheese Heads Light (2471313, 2023-02); Polly-O (2597806, 2023-07) |
 | Hard-boiled eggs | Hillandale Eggs2Go, 2 eggs (2484289, 2023-02); Almark, 1 egg (2104085, 2021-10) |
 | Tuna and chicken pouches | StarKist Chunk Light Tuna in Water pouch (2490104, 2023-02); Sweet Sue Premium Chicken Breast pouch (1 pouch, 2077402, 2021-10) |

@@ -5,16 +5,29 @@ reviewer should look at before it ships. Check the file with
 `node data/validate-road-food.mjs`.
 
 Ground rules: restaurant figures come only from the chain's own published
-nutrition (its site, its PDF, or the JSON its own nutrition page loads). Snacks
-come only from USDA FoodData Central Branded Foods (CC0). Nothing came from
-memory, estimates, aggregators, SR Legacy, MenuStat, Nutritionix or Open Food
-Facts. A chain whose current numbers could not be read from its own source is
-left out. Blank stays blank: a field the source doesn't give is omitted.
+nutrition (its site, its PDF, the JSON its own nutrition page loads, or the
+calculator its own nutrition page embeds). Snacks come only from USDA
+FoodData Central Branded Foods (CC0). Nothing came from memory, estimates,
+aggregators, SR Legacy, MenuStat or Open Food Facts, and nothing came from
+anyone's nutrition database searched on its own account. A chain whose current
+numbers could not be read from its own source is left out. Blank stays blank:
+a field the source doesn't give is omitted.
+
+**On embedded calculators (2026-09-24).** Two chains publish their food
+nutrition only through a Nutritionix calculator embedded in their own
+nutrition page. Doug's call is that this is the chain's own published source:
+the chain chose the calculator, put it on its own page, and supplies the
+figures it serves - it is their chart with someone else's software drawing it.
+That is not the same as searching Nutritionix's database, which remains out.
+The distinction is mechanical, so the check enforces it: for Taco Bell and
+Sheetz it first re-reads the chain's own page and confirms the embed is still
+there, and says so in the report. If the chain drops the embed, the figures
+stop being the chain's own and the entry has to be re-read.
 
 Raw copies of every page, PDF and JSON that was read were kept during curation.
 They are not committed, because they are the chains' own files.
 
-## Chains in the file (11 chains, 89 items)
+## Chains in the file (13 chains, 108 items)
 
 `Read on` is the chain's `checkedOn`; `publishedOn` is the date the document
 states about itself, blank when it states none. See "Published on" in
@@ -28,10 +41,12 @@ states about itself, blank when it states none. See "Published on" in
 | Whataburger | burgers | 9 | https://wbimageserver.whataburger.com/Nutrition.pdf | 2026-09-23 | 2021-03-29 | **"Nutritional information as of March 29, 2021"** (the file itself was created 2021-02-02; the printed statement is later and wins) |
 | Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-09-20 | — | none shown |
 | Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-09-20 | 2026-08 | "Popeyes® USA Nutrition Guide — August 2026", and "current as of August 2026" in the footnote (the file properties still say "Nutrition FEBRUARY 2023", a stale template title) |
+| Taco Bell | mexican | 10 | The Nutritionix calculator embedded at https://www.tacobell.com/nutrition/info, whose menu grid is `www.nutritionix.com/taco-bell/menu/premium` | 2026-09-24 | 2026-09-24 | **"Last Updated: 09/24/2026"** above and below the grid |
 | Chipotle | mexican | 9 | https://www.chipotle.com/content/dam/chipotle/menu/nutrition/US-Nutrition-Facts-Paper-Menu-3-2025.pdf | 2026-09-23 | 2024-10 | **footer code `OCT-2024-US-CK`** |
 | Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | 2026-01 | "U.S. NUTRITION INFORMATION — January 2026" |
 | Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | — | none shown |
 | Panera Bread | coffee | 8 | https://www.panerabread.com/content/dam/panerabread/documents/c8-26-nutrition-guide.pdf | 2026-09-20 | 2026-09-02 | "Effective: 9/2/2026 Edition: 1", on every page |
+| Sheetz | gas-station-kitchen | 9 | The Nutritionix calculator embedded at https://www.sheetz.com/nutrition, whose menu grid is `www.nutritionix.com/sheetz/menu/premium` | 2026-09-24 | 2026-09-23 | **"Last Updated: 09/23/2026"** on the calculator and on the grid |
 | QuikTrip | gas-station-kitchen | 8 | https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf (linked from quiktrip.com product pages) | 2026-09-20 | — | none printed anywhere in the document; its file properties say 2025-09-12 and its URL path says 2025/09, neither of which is the document speaking |
 
 The exact `source` URL for each chain is in the JSON.
@@ -161,6 +176,69 @@ published figure.
   - The PDF lists a whole-portion Green Goddess dressing (150 kcal), but it
     doesn't state that the Cobb uses that portion, so no dressing
     modification.
+- **Taco Bell.** tacobell.com/nutrition/info renders the full nutrition grid
+  inline, inside the Nutritionix calculator it embeds; the page's own HTML
+  names that widget as the thing it renders. The grid is server-rendered HTML
+  with a row per item and a column per figure, read straight out of it.
+  - **The widget prints "Last Updated: 09/24/2026"**, which is the day it was
+    read. That is not a coincidence the file should hide: other brands on the
+    same widget print older dates of their own (Wendy's 08/05/2025, Subway
+    03/22/2025), so the line is a real per-brand date and not a render stamp,
+    and Taco Bell's simply moved that day. If a later check reports that the
+    document no longer states 2026-09-24, that is the widget being updated
+    again, not a fault. **Doug: worth a second look.**
+  - **There are no Power Menu Bowls.** They are not on the chart at all. The
+    Cantina Chicken Bowl is the bowl the current menu has, and it is in the
+    file.
+  - **Fresco Style publishes no figure.** The chart's own disclaimer says
+    Fresco-Style "replaces any mayo based sauces, reduced-fat sour cream,
+    nacho cheese sauce, and shredded cheeses with diced tomatoes" and that it
+    "typically results in a reduction in calories and fat" - no number, and no
+    per-item Fresco row anywhere. So the two `modification` lines say the swap
+    and say plainly that no figure is published, the way Chipotle's "double
+    chicken is this row twice" states no number. They are worded as an
+    ordering option, not a claim about what any item contains, because the
+    chart does not publish ingredients. **Doug: cut them if a derived-free
+    modification is still too much.**
+  - **Dropped: Cantina Chicken Crispy Taco.** It publishes "< 1" for sugar,
+    like Burger King's dropped rows. Blank stays blank.
+  - Items were taken from the standing menu sections. The two nugget rows and
+    the strips sit in the grid's "New" section, which is where Taco Bell files
+    its newest standing items; they are the highest-protein rows on the whole
+    chart, and if they leave the menu the quarterly check will not know - only
+    a person reading the grid will.
+  - `®` is dropped from the names and kept in the locators, as Whataburger's
+    are.
+- **Sheetz.** sheetz.com/nutrition embeds the calculator; the same widget
+  publishes the whole menu as a grid at `/sheetz/menu/premium`, which is what
+  the figures were read from. The chain page is the `source` because it is the
+  chain's own page and the embed is what makes these Sheetz's figures; the
+  grid address is in the locator, and the check confirms the embed each run.
+  - **Sheetz's own page is 9 MB and takes over a minute to send.** The check
+    gives it a longer timeout for that one request, and reads one string out
+    of it.
+  - **Traps in the grid, deliberately avoided.** Several made-to-order rows
+    are named like a finished sandwich but are only its meat: "MTO Grilled
+    Chicken Sandwich" is 120 kcal with 0 g of carbohydrate (the same row as
+    "Grilled Chicken Breast Filet"), and "Made-To-Order Steakhouse Cutz Sub -
+    Half" is 190 kcal with 2 g - no roll. Those are the calculator's
+    build-your-own starting points, and none of them is in the file under a
+    sandwich's name. The one component that is in the file, Grilled Chicken
+    Breast Filet, says so in its serving text.
+  - **"Catina Bowl" is spelled that way on the chart.** It looks like Sheetz's
+    typo for Cantina. The name is what the source publishes. **Doug: say the
+    word and it is spelled Cantina, at the cost of no longer matching.**
+  - **Dropped: Farmhouse and Sausage Keto Cups, and Shredded Chicken.** Each
+    publishes "< 1" in a column the file carries. The Mexican Keto Cup, whose
+    row is clean, is in.
+  - **Dropped: Protein Showdown** (330 kcal, 20 g protein). The chart gives no
+    serving and no description, and nothing about the item says what one of it
+    is, so there is no honest `serving` to write.
+  - The grid repeats an item in every menu section it belongs to. The repeats
+    agree for every item in the file, and the check refuses to pick among
+    repeats that disagree rather than taking the first.
+  - Drinks were left out. Sheetz's own server-rendered page covers drinks and
+    the protein lattes rank high, but the kitchen is what the entry is for.
 - **QuikTrip.** The PDF's text interleaves rows, so every item was re-read by
   position on the page.
   - Grab & Go wraps and subs are the pre-made case items. The made-to-order
@@ -173,14 +251,14 @@ published figure.
 
 Re-tried on 2026-09-23, with the same ground rules: the chain's own published
 document, one plain request each, a User-Agent naming this work, no retries and
-nothing worked around.
+nothing worked around. Taco Bell and Sheetz came off this list on 2026-09-24,
+when an embedded official calculator became an acceptable source; the other
+four are still out for reasons the rule change does not touch.
 
 | Chain | Why |
 |---|---|
 | McDonald's | Every mcdonalds.com path answers **HTTP 403** to a plain request - the nutrition calculator, the full menu, and the `/content/dam/.../nutrition` PDF paths alike. A WebFetch of the calculator is refused the same way. There is no US PDF on another host. Not bypassed. |
-| Taco Bell | tacobell.com is a Next.js shell; its `/nutrition/info` page renders no figures, its data routes 404, and the page's own chunk names no nutrition endpoint. The full nutrition is an embedded **Nutritionix** calculator, which the brief excludes. **Doug:** if a chain's own embedded official calculator counts as the chain's source, Taco Bell and Sheetz both become possible. |
 | Jersey Mike's | `subs.jerseymikes.com/nutrition/{product}/{size}` returns **per-ingredient rows only** - values like `136.539000` calories - and the page sums the default ingredients in the browser for its "Totals" footer. There is no published total to read; producing one means re-running the page's arithmetic. Left out under "don't sum components". **Doug:** still a policy call, not a data problem. |
-| Sheetz | sheetz.com/nutrition is server-rendered, but only for **drinks**. Food is an `m.nutritionix.com/sheetz/...` iframe. |
 | Wawa | wawa.com's own pages (`/nutrition/lower-sodium` and its siblings) publish **calories and sodium only** - no protein, fat or carbohydrate - so nothing there can fill a required field. The full calculator is still behind a 403. |
 | Buc-ee's | buc-ees.com still publishes no nutrition at all: not a figure on the site. |
 
@@ -247,7 +325,9 @@ Five plain rules show on every chain (the spec's timeless ones). One
 kind-specific line each for burgers, chicken, mexican, sandwiches, coffee and
 gas-station-kitchen. Two `"snacks"` rules show only on the Gas station
 screen. The Mexican line was held back in the first pass because no Mexican
-chain made it; Chipotle brings it in.
+chain made it; Chipotle brought it in, and Taco Bell is the second chain it
+shows on. Sheetz is the second gas-station kitchen. No rule was added or
+changed for either.
 
 ## Refresh
 

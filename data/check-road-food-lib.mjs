@@ -178,6 +178,81 @@ export function findChickFilARow(rows, locator) {
   return { values: hits[0].values };
 }
 
+// ------------------------------------------------------ Nutritionix menu grid
+
+// Taco Bell and Sheetz publish their full food nutrition only through the
+// Nutritionix calculator their own nutrition page embeds. That widget's menu
+// grid is server-rendered HTML: a `<tr class="subCategory">` per section
+// heading, then one row per item whose first cell holds
+// `<a class="nmItem" title="...">` and whose remaining `<td class="col">`
+// cells are the table's columns, left to right, exactly as `columns` lists
+// them.
+//
+// The widget stamps fresh element ids into every response, so the page's
+// bytes say nothing about whether the figures moved; only the numbers and the
+// "Last Updated" date it prints are worth comparing.
+const stripTags = (s) => String(s).replace(/<[^>]*>/g, " ");
+const unescapeHtml = (s) => String(s)
+  .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<")
+  .replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#0?39;|&apos;/gi, "'")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+const text = (s) => unescapeHtml(stripTags(s)).replace(/\s+/g, " ").trim();
+
+// A grid cell holds a number, a thousands-separated number, or a censored one
+// ("< 1"). Only a real number is a figure; "< 1" is neither a number nor a
+// blank, which is why no bundled item carries a field the grid censors.
+function gridNumber(cell) {
+  const t = cell.replace(/,/g, "").trim();
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : undefined;
+}
+
+export function parseNutritionixGrid(html) {
+  const rows = [];
+  let section;
+  for (const tr of String(html).split(/<tr\b/i).slice(1)) {
+    const head = /class="subCategory"[\s\S]*?<h3>([\s\S]*?)<\/h3>/i.exec(tr);
+    if (head) { section = text(head[1]); continue; }
+    const name = /<a[^>]*class="nmItem"[^>]*title="([^"]*)"/i.exec(tr);
+    if (!name) continue;
+    const cells = [...tr.matchAll(/<td[^>]*class="col"[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => text(m[1]));
+    rows.push({ section, title: unescapeHtml(name[1]).trim(), cells });
+  }
+  return rows.length ? { rows } : { error: "the page no longer renders a Nutritionix menu grid" };
+}
+
+// locator: { row, section? }. The grid repeats an item in every section it
+// belongs to; identical repeats are the same row, and repeats that disagree
+// are a real ambiguity a `section` has to settle rather than a first-match.
+export function findNutritionixRow(rows, locator, columns) {
+  const want = normaliseLabel(locator.row);
+  const hits = rows.filter((r) => normaliseLabel(r.title) === want
+    && (!locator.section || normaliseLabel(r.section ?? "") === normaliseLabel(locator.section)));
+  if (!hits.length) {
+    return { error: `row "${locator.row}" not found${locator.section ? ` in "${locator.section}"` : ""}` };
+  }
+  if (new Set(hits.map((h) => h.cells.join("|"))).size > 1) {
+    return { error: `row "${locator.row}" appears ${hits.length} times with different figures; name a "section"` };
+  }
+  const cells = hits[0].cells;
+  if (cells.length !== columns.length) {
+    return { error: `row "${locator.row}" has ${cells.length} cells, expected ${columns.length}` };
+  }
+  const values = {};
+  columns.forEach((c, i) => {
+    if (c === "_") return;
+    const n = gridNumber(cells[i]);
+    if (n !== undefined) values[c] = n;
+  });
+  return { values, cells };
+}
+
+// Does the chain's own nutrition page still embed this widget? That embed is
+// the whole reason the widget's figures count as the chain's own published
+// ones, so it is checked, not assumed.
+export function embedsWidget(html, embed) {
+  return String(html).includes(embed);
+}
+
 // ----------------------------------------------------------------- Starbucks
 
 // /apiproxy/v1/ordering/{product}/{form}: products[0].sizes[], each with a

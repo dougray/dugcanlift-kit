@@ -8,7 +8,7 @@
 | `validate-road-food.mjs` | Shape and honesty checks on the JSON. |
 | `check-road-food.mjs` | The refresh check: have the chains' published numbers moved? |
 | `check-road-food-lib.mjs` | The check's reading, comparing and reporting, with no network (tested). |
-| `road-food-locators.json` | Where each bundled item sits in its source: a PDF row, a sales item id, a product number. |
+| `road-food-locators.json` | Where each bundled item sits in its source: a PDF row, a grid row, a sales item id, a product number. |
 | `road-food-CHECK.md` | The last check's report. Overwritten each run. |
 
 ## Published on
@@ -104,8 +104,12 @@ For each chain the check fetches the source SOURCES.md records, once, with a
 User-Agent naming the tool and a pause between requests. It never retries, and
 it never works around a refusal: a 403 is reported as "couldn't reach".
 Where the source can be read by machine (PDF text, the JSON embedded in
-Chick-fil-A's page, Wendy's and Starbucks' ordering APIs, FoodData Central) it
-reads each bundled item back out and compares every number. Where it can't
+Chick-fil-A's page, Wendy's and Starbucks' ordering APIs, the menu grid of the
+calculator Taco Bell's and Sheetz's own pages embed, FoodData Central) it
+reads each bundled item back out and compares every number. For a chain whose
+figures come from an embedded calculator it also re-reads the chain's own page
+and confirms the embed is still there, because that embed is the whole reason
+the widget's figures count as the chain's own. Where it can't
 (QuikTrip's PDF, whose text interleaves rows), it reports whether the document
 changed since `checkedOn`, and says "re-read by hand" when it did or when it
 can't tell. It also gives each chain's `publishedOn`, how many months old that

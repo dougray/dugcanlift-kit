@@ -10,6 +10,7 @@ import {
   parseStarbucks, wendysRequest, parseWendysNutrition, deriveSnack, labelRound, fdcDate,
   newerFdcRecords, isStale, modifiedAfter, chainVerdict, exitCode, renderReport, renderSummary,
   dateStatements, statesPublished, docDateDay, monthsOld,
+  parseNutritionixGrid, findNutritionixRow, embedsWidget,
 } from "./check-road-food-lib.mjs";
 
 const item = (over = {}) => ({ id: "x-item", name: "Item", serving: "1", kcal: 300, proteinG: 20, fatG: 10, carbsG: 30,
@@ -147,6 +148,60 @@ test("Chick-fil-A rows come from the page's embedded table, sub-items included",
 test("a Chick-fil-A page without the embedded table says so rather than guessing", () => {
   assert.match(parseChickFilA("<html>new site</html>").error, /no longer embeds/);
   assert.match(findChickFilARow(parseChickFilA(CFA).rows, { row: "Waffle Fries" }).error, /not found/);
+});
+
+// -------------------------------------------------------- Nutritionix grid
+
+const nxRow = (name, cells) => `<tr class="odd"><td class="al" headers="inmGrid_c0">`
+  + `<a class="nmItem" title="${name}" id="z${Math.floor(Math.random() * 1e6)}-item-1" href="viewLabel">${name}</a>`
+  + `<a class="moreInfo fr" href="viewLabel">[more info]</a></td>`
+  + cells.map((c, i) => `<td class="col" title="x" headers="inmGrid_c${i + 1}">${c}</td>`).join("") + `</tr>`;
+const NX = `<table><tbody>
+<tr class="subCategory"><td colspan="12"><h3>Tacos</h3><p></p></td></tr>
+${nxRow("Soft Taco Supreme&#174; - Chicken", ["180", "6", "3.5", "0", "40", "520", "19", "2", "2", "1", "12"])}
+${nxRow("Cantina Chicken Bowl", ["1,050", "29", "8", "0", "60", "1,320", "55", "11", "&lt; 1", "0", "26"])}
+<tr class="subCategory"><td colspan="12"><h3>Luxe Value Menu</h3><p></p></td></tr>
+${nxRow("Soft Taco Supreme&#174; - Chicken", ["180", "6", "3.5", "0", "40", "520", "19", "2", "2", "1", "12"])}
+${nxRow("Cantina Chicken Bowl", ["999", "29", "8", "0", "60", "1,320", "55", "11", "4", "0", "26"])}
+</tbody></table><p class="menuLastUpdated"><strong>Last Updated:</strong> 09/24/2026</p>`;
+const NX_COLS = ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "_", "proteinG"];
+
+test("a Nutritionix grid row is read by its published name, marks and all", () => {
+  const { rows } = parseNutritionixGrid(NX);
+  const r = findNutritionixRow(rows, { row: "Soft Taco Supreme® - Chicken" }, NX_COLS);
+  assert.deepEqual(r.values, { kcal: 180, fatG: 6, saturatedFatG: 3.5, sodiumMg: 520, carbsG: 19, fiberG: 2, sugarG: 2, proteinG: 12 });
+});
+
+test("a thousands separator is a number; a censored cell stays blank", () => {
+  const { rows } = parseNutritionixGrid(NX);
+  const r = findNutritionixRow(rows, { row: "Cantina Chicken Bowl", section: "Tacos" }, NX_COLS);
+  assert.equal(r.values.kcal, 1050);
+  assert.equal(r.values.sodiumMg, 1320);
+  assert.equal("sugarG" in r.values, false);
+});
+
+test("the grid repeats an item per section: agreeing repeats are one row, disagreeing ones need a section", () => {
+  const { rows } = parseNutritionixGrid(NX);
+  assert.equal(findNutritionixRow(rows, { row: "Soft Taco Supreme® - Chicken" }, NX_COLS).values.kcal, 180);
+  assert.match(findNutritionixRow(rows, { row: "Cantina Chicken Bowl" }, NX_COLS).error, /different figures/);
+  assert.equal(findNutritionixRow(rows, { row: "Cantina Chicken Bowl", section: "Luxe Value Menu" }, NX_COLS).values.kcal, 999);
+});
+
+test("a grid that stopped being a grid, or a row that left it, says so rather than guessing", () => {
+  assert.match(parseNutritionixGrid("<html>new widget</html>").error, /no longer renders/);
+  assert.match(findNutritionixRow(parseNutritionixGrid(NX).rows, { row: "Nachos BellGrande" }, NX_COLS).error, /not found/);
+  assert.match(findNutritionixRow(parseNutritionixGrid(NX).rows, { row: "Cantina Chicken Bowl", section: "Tacos" }, ["kcal"]).error, /expected 1/);
+});
+
+test("the widget's own Last Updated line is the date the bundle records", () => {
+  assert.equal(statesPublished(NX, "2026-09-24"), true);
+  assert.equal(statesPublished(NX, "2026-09-23"), false);
+});
+
+test("the embed is what makes the widget the chain's own source, so it is checked", () => {
+  const page = `<div id="calculator"><iframe src="https://www.nutritionix.com/sheetz/nutrition-calculator/premium"></iframe></div>`;
+  assert.equal(embedsWidget(page, "nutritionix.com/sheetz/nutrition-calculator/premium"), true);
+  assert.equal(embedsWidget("<div>coming soon</div>", "nutritionix.com/sheetz/nutrition-calculator/premium"), false);
 });
 
 // ------------------------------------------------------------- Starbucks

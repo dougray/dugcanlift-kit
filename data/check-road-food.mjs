@@ -33,6 +33,7 @@ import { dirname, join } from "node:path";
 import {
   FIELDS, compareItem, modificationSaving, findPdfRow, parseChickFilA, findChickFilARow,
   parseStarbucks, wendysRequest, parseWendysNutrition, deriveSnack, newerFdcRecords, fdcDate,
+  parseNutritionixGrid, findNutritionixRow, embedsWidget,
   isStale, modifiedAfter, chainVerdict, exitCode, renderReport, renderSummary, statesPublished,
 } from "./check-road-food-lib.mjs";
 
@@ -40,6 +41,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const CACHE = join(HERE, ".road-food-cache");
 const USER_AGENT = "dugcanlift-road-food-check/1.0 (+https://github.com/dougray/dugcanlift-kit; quarterly nutrition refresh check)";
 const TIMEOUT_MS = 45_000;
+// Sheetz's own nutrition page is a 9 MB single-page app that takes over a
+// minute to send; the embed check reads one string out of it and no more.
+const SLOW_PAGE_TIMEOUT_MS = 180_000;
 const PAUSE_MS = 1_000;
 const OFFLINE = process.argv.includes("--offline");
 
@@ -57,7 +61,7 @@ let lastRequest = 0;
 // Fetches one document. Returns { body: Buffer, status, fromCache, meta,
 // previous } or { error }. `previous` is the last run's metadata, for the
 // "same as last run" signal.
-async function get(url, { method = "GET", body, headers = {} } = {}) {
+async function get(url, { method = "GET", body, headers = {}, timeoutMs = TIMEOUT_MS } = {}) {
   const k = cacheKey(url, body);
   const previous = existsSync(metaPath(k)) ? JSON.parse(readFileSync(metaPath(k), "utf8")) : undefined;
   const cached = previous && existsSync(bodyPath(k)) ? readFileSync(bodyPath(k)) : undefined;
@@ -74,11 +78,13 @@ async function get(url, { method = "GET", body, headers = {} } = {}) {
     if (previous.lastModified) h["If-Modified-Since"] = previous.lastModified;
   }
   let res;
+  const whyFailed = (e) => (e.name === "TimeoutError" || e.name === "AbortError"
+    ? `no answer in ${timeoutMs / 1000} s`
+    : (e.cause?.code ?? e.message));
   try {
-    res = await fetch(url, { method, body, headers: h, redirect: "follow", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetch(url, { method, body, headers: h, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
   } catch (e) {
-    const why = e.name === "TimeoutError" ? `no answer in ${TIMEOUT_MS / 1000} s` : (e.cause?.code ?? e.message);
-    return { error: `${new URL(url).host}: ${why}` };
+    return { error: `${new URL(url).host}: ${whyFailed(e)}` };
   }
   if (res.status === 304 && cached) {
     const meta = { ...previous, fetchedAt: new Date().toISOString(), status: 304 };
@@ -89,7 +95,15 @@ async function get(url, { method = "GET", body, headers = {} } = {}) {
     const blocked = [401, 403, 429].includes(res.status) ? " (refused; not retried or worked around)" : "";
     return { error: `${new URL(url).host}: HTTP ${res.status}${blocked}` };
   }
-  const buf = Buffer.from(await res.arrayBuffer());
+  // The timeout covers the body too, and a big slow page can abort here long
+  // after the headers arrived. A source that could not be read is reported
+  // like any other, never thrown out of the run.
+  let buf;
+  try {
+    buf = Buffer.from(await res.arrayBuffer());
+  } catch (e) {
+    return { error: `${new URL(url).host}: ${whyFailed(e)} while reading the body` };
+  }
   const meta = {
     url: url.replace(/api_key=[^&]+/, "api_key=…"), fetchedAt: new Date().toISOString(), status: res.status,
     etag: res.headers.get("etag") ?? undefined,
@@ -221,6 +235,34 @@ async function checkChickFilA(chain, loc, r) {
   r.items = itemsWith(chain, loc, (l) => findChickFilARow(parsed.rows, l));
 }
 
+// Taco Bell and Sheetz publish their food nutrition only through the
+// Nutritionix calculator their own nutrition page embeds. The chain's page is
+// the `source`, so the embed itself is checked first: without it the widget is
+// no longer the chain's own published figures and the entry has to be re-read.
+async function checkNutritionixGrid(chain, loc, r) {
+  const page = await get(chain.source, { timeoutMs: SLOW_PAGE_TIMEOUT_MS });
+  if (page.error) r.signals.push(`Could not re-read ${new URL(chain.source).host} to confirm the embed: ${page.error}`);
+  else if (embedsWidget(page.body.toString("utf8"), loc.embed)) {
+    r.signals.push(`${new URL(chain.source).host} still embeds ${loc.embed}.`);
+  } else {
+    r.signals.push(`**${new URL(chain.source).host} no longer embeds ${loc.embed}**: the widget may no longer be what the chain publishes, so re-read the source by hand.`);
+  }
+  const doc = await get(loc.gridUrl);
+  if (doc.error) { r.unreachable.push(doc.error); return; }
+  const html = doc.body.toString("utf8");
+  r.signals.push(...signals(doc, chain.checkedOn, { hashMeaningful: false }));
+  r.signals.push("The widget stamps fresh element ids into every response, so its bytes say nothing; only the numbers and the date it prints are compared.");
+  const parsed = parseNutritionixGrid(html);
+  if (parsed.error) {
+    r.manual = true;
+    r.manualWhy = `${parsed.error}; re-read by hand`;
+    r.items = chain.items.map((i) => ({ id: i.id, name: i.name, error: "grid not parsed" }));
+    return;
+  }
+  notePublished(r, chain, html);
+  r.items = itemsWith(chain, loc, (l) => findNutritionixRow(parsed.rows, l, loc.columns));
+}
+
 async function checkStarbucks(chain, loc, r) {
   const items = [];
   for (const item of chain.items) {
@@ -287,7 +329,8 @@ async function checkWendys(chain, loc, r) {
   r.items = items;
 }
 
-const METHODS = { pdf: checkPdf, manual: checkManual, chickfila: checkChickFilA, starbucks: checkStarbucks, wendys: checkWendys };
+const METHODS = { pdf: checkPdf, manual: checkManual, chickfila: checkChickFilA, starbucks: checkStarbucks,
+  wendys: checkWendys, nutritionix: checkNutritionixGrid };
 
 async function checkChain(chain) {
   const r = { id: chain.id, name: chain.name, checkedOn: chain.checkedOn, publishedOn: chain.publishedOn,

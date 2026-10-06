@@ -9,7 +9,7 @@ import XCTest
 final class NoNetworkTests: XCTestCase {
 
     static let forbidden = ["URLSession", "URLRequest", "NWConnection",
-                            "import Network", "import MapKit", "import WebKit"]
+                            "import Network", "import MapKit", "import WebKit", "AsyncImage("]
 
     static func offences(in code: String) -> [String] {
         // Strip line comments first: a block comment opening inside a line comment (e.g. `// Sources/*`)
@@ -29,6 +29,7 @@ final class NoNetworkTests: XCTestCase {
         XCTAssertEqual(Self.offences(in: "import MapKit\n"), ["import MapKit"])
         // Line comments must be stripped first: a `/*` inside a line comment must not delete real code to a later `*/`.
         XCTAssertEqual(Self.offences(in: "/// reads Sources/*\nlet s = URLSession.shared\n/* note */"), ["URLSession"])
+        XCTAssertEqual(Self.offences(in: "AsyncImage(url: u)"), ["AsyncImage("])
     }
 
     func testTheKitMakesNoRequest() throws {
@@ -40,6 +41,7 @@ final class NoNetworkTests: XCTestCase {
             let dir = root.appendingPathComponent(folder)
             let files = (FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)?
                 .compactMap { $0 as? URL } ?? []).filter { $0.pathExtension == "swift" }
+            XCTAssertGreaterThan(files.count, 0, "folder \(folder) must have at least one Swift file")
             for file in files {
                 checked += 1
                 let code = try String(contentsOf: file, encoding: .utf8)

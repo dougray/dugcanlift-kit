@@ -48,7 +48,8 @@ public struct RouteCanvas: View {
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 Canvas { context, size in
-                    // Return early when the canvas has no usable dimensions; the first layout pass can be zero-sized.
+                    // A first layout pass can be zero-sized, and RouteProjection divides by the size inside its padding:
+                    // drawing then would build NaN points.
                     guard size.width > 0, size.height > 0 else { return }
                     let projected = RouteProjection.project(points, width: Double(size.width),
                                                             height: Double(size.height))

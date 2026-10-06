@@ -34,7 +34,29 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
-### 1.10.0 — per-side prescriptions (proposed, not yet tagged)
+### 1.11.0 — routes with no map
+
+A route drawn with no tile server, so no tile server learns where the route is. `RouteProjection` is a port of Coach web's `coach/route.js` `project()`, checked point for point against `Tests/LiftCoreTests/Fixtures/route-projection-expected.json`, which route.js wrote (`scripts/make-route-projection-fixture.mjs`) and which is never regenerated from Swift. `RouteCanvas` renders the projected line; a guard in the Canvas closure handles zero-sized layout passes. `NoNetworkTests` fails the build if LiftCore or LiftReference makes a request.
+
+**API added**
+
+- `RouteProjection.project(_:width:height:) -> [CGPoint]` — projects
+  `[OutdoorShareCoordinate]` to screen space, centred and scaled to fit
+  inside 10% padding.
+- `RouteProjection.minimumSpanDegrees: Double = 0.0001` — the span below
+  which the projection treats coordinates as identical.
+- `RouteCanvas(points:aspectRatio:) -> View` — draws a route in the accent
+  colour with a start dot in the secondary accent and an end dot in the full
+  accent, or shows "Waiting for GPS…" under two points. Reads as "Route" to
+  VoiceOver; while waiting it reads "Waiting for GPS…".
+- `RouteCanvas.waitingText: String = "Waiting for GPS…"` — pinned to
+  LIFT Android's `RoutePolylineCanvas`.
+- `RouteCanvas.accessibilityName: String = "Route"` — also pinned to
+  Android.
+
+**No schema change.** Nothing here is a `@Model`.
+
+### 1.10.0 — per-side prescriptions
 
 A coach's plan can say an exercise is done each side, and that a set is for
 one side only (PLAN-FORMAT.md "Sides"). Additive, `v` stays `1`.

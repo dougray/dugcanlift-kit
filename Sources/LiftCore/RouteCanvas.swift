@@ -2,10 +2,10 @@ import SwiftUI
 
 /// A route drawn with no map behind it — LIFT Android's `RoutePolylineCanvas`
 /// and Coach web's canvas, for iPhone. The line in the accent colour, a
-/// dot in the secondary accent where it started (as Coach web and Coach
-/// Android draw it) and a full-strength dot where it ends — which, during
-/// a recording, is where you are. Under two points it says
-/// "Waiting for GPS…".
+/// dot in the secondary accent where it started (as Coach web, Coach
+/// Android and the iPhone apps' previous route views draw it) and a
+/// full-strength dot where it ends — which, during a recording, is where
+/// you are. Under two points it says "Waiting for GPS…".
 ///
 /// No tiles means no server learns where the route is. The distance and time
 /// beside it on every card carry the facts in words, so the drawing reads as a

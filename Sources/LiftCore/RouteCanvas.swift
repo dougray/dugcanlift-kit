@@ -2,17 +2,22 @@ import SwiftUI
 
 /// A route drawn with no map behind it — LIFT Android's `RoutePolylineCanvas`
 /// and Coach web's canvas, for iPhone. The line in the accent colour, a
-/// half-strength dot where it started and a full one where it ends — which,
-/// during a recording, is where you are. Under two points it says
+/// dot in the secondary accent where it started (as Coach web and Coach
+/// Android draw it) and a full-strength dot where it ends — which, during
+/// a recording, is where you are. Under two points it says
 /// "Waiting for GPS…".
 ///
 /// No tiles means no server learns where the route is. The distance and time
 /// beside it on every card carry the facts in words, so the drawing reads as a
-/// single element, "Route".
+/// single element, "Route"; while waiting it reads "Waiting for GPS…".
 public struct RouteCanvas: View {
 
     public static let waitingText = "Waiting for GPS…"
     public static let accessibilityName = "Route"
+
+    static func accessibilityText(pointCount: Int) -> String {
+        pointCount < 2 ? waitingText : accessibilityName
+    }
 
     let points: [OutdoorShareCoordinate]
     /// Width over height. Square on recording and review; nil lets a card that
@@ -34,9 +39,9 @@ public struct RouteCanvas: View {
                 panel
             }
         }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Self.accessibilityName)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityText(pointCount: points.count))
     }
 
     private var panel: some View {
@@ -48,8 +53,7 @@ public struct RouteCanvas: View {
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 Canvas { context, size in
-                    // A first layout pass can be zero-sized, and RouteProjection divides by the size inside its padding:
-                    // drawing then would build NaN points.
+                    // A first layout pass can be zero-sized; there is nothing worth drawing then.
                     guard size.width > 0, size.height > 0 else { return }
                     let projected = RouteProjection.project(points, width: Double(size.width),
                                                             height: Double(size.height))
@@ -59,7 +63,7 @@ public struct RouteCanvas: View {
                                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
                     if let start = projected.first {
                         context.fill(Path(ellipseIn: CGRect(x: start.x - 5, y: start.y - 5, width: 10, height: 10)),
-                                     with: .color(Theme.accent.opacity(0.5)))
+                                     with: .color(Theme.accentSecondary))
                     }
                     if let end = projected.last {
                         context.fill(Path(ellipseIn: CGRect(x: end.x - 6, y: end.y - 6, width: 12, height: 12)),

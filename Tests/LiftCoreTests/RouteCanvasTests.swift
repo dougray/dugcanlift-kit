@@ -10,10 +10,24 @@ final class RouteCanvasTests: XCTestCase {
         XCTAssertEqual(RouteCanvas.accessibilityName, "Route")
     }
 
-    func testItBuildsWithAndWithoutARoute() {
-        _ = RouteCanvas(points: []).body
-        _ = RouteCanvas(points: [OutdoorShareCoordinate(latitude: 0, longitude: 0),
-                                 OutdoorShareCoordinate(latitude: 0.01, longitude: 0.01)],
-                        aspectRatio: 1).body
+    @MainActor
+    func testItRendersARouteAndHandlesZeroSize() {
+        // Render a 2-point route at 200×200 and verify it produces an image
+        var renderer = ImageRenderer(content: RouteCanvas(points: [
+            OutdoorShareCoordinate(latitude: 0, longitude: 0),
+            OutdoorShareCoordinate(latitude: 0.01, longitude: 0.01)
+        ]).frame(width: 200, height: 200))
+        XCTAssertNotNil(renderer.cgImage)
+
+        // Render the same route at 0×0: should not crash (R9 guard prevents NaN points)
+        renderer = ImageRenderer(content: RouteCanvas(points: [
+            OutdoorShareCoordinate(latitude: 0, longitude: 0),
+            OutdoorShareCoordinate(latitude: 0.01, longitude: 0.01)
+        ]).frame(width: 0, height: 0))
+        _ = renderer.cgImage  // Render completes; nil is acceptable
+
+        // Render an empty route at 200×200 and verify it produces an image (shows waiting text)
+        renderer = ImageRenderer(content: RouteCanvas(points: []).frame(width: 200, height: 200))
+        XCTAssertNotNil(renderer.cgImage)
     }
 }

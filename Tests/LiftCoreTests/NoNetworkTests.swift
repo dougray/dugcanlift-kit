@@ -12,9 +12,12 @@ final class NoNetworkTests: XCTestCase {
                             "import Network", "import MapKit", "import WebKit"]
 
     static func offences(in code: String) -> [String] {
-        var stripped = code.replacingOccurrences(of: "/\\*[\\s\\S]*?\\*/", with: "",
+        // Strip line comments first: a block comment opening inside a line comment (e.g. `// Sources/*`)
+        // must not delete real code up to a later `*/`. Stripping line comments first can only leave
+        // comment text, which fails loudly.
+        var stripped = code.replacingOccurrences(of: "//[^\n]*", with: "",
                                                  options: .regularExpression)
-        stripped = stripped.replacingOccurrences(of: "//[^\n]*", with: "",
+        stripped = stripped.replacingOccurrences(of: "/\\*[\\s\\S]*?\\*/", with: "",
                                                  options: .regularExpression)
         return forbidden.filter { stripped.contains($0) }
     }
@@ -24,6 +27,8 @@ final class NoNetworkTests: XCTestCase {
         XCTAssertEqual(Self.offences(in: "// URLSession is not used here\nlet x = 1"), [])
         XCTAssertEqual(Self.offences(in: "/* import MapKit */\nimport SwiftUI"), [])
         XCTAssertEqual(Self.offences(in: "import MapKit\n"), ["import MapKit"])
+        // Line comments must be stripped first: a `/*` inside a line comment must not delete real code to a later `*/`.
+        XCTAssertEqual(Self.offences(in: "/// reads Sources/*\nlet s = URLSession.shared\n/* note */"), ["URLSession"])
     }
 
     func testTheKitMakesNoRequest() throws {

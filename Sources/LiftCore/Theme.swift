@@ -29,9 +29,18 @@ public enum Theme {
     public static let background = Color(light: 0xF4EFE7, dark: 0x1C1B19)
     /// Warm brown card surface. NOT a cool grey -- see the note above. Near-white in light.
     public static let surface = Color(light: 0xFFFCF7, dark: 0x242220)
-    /// Rust/burnt orange. Headings, active tab, filled chips, progress, destructive.
+    /// Rust/burnt orange as a FILL: filled chips and buttons, progress, the
+    /// active tab's rule. Not for text in dark: 0xC1442C is 3.39:1 on
+    /// `background` and 3.12:1 on `surface`, below AA. Use `accentText`.
     public static let accent = Color(light: 0xB23C25, dark: 0xC1442C)
-    /// Dimmed accent for pressed and disabled states.
+    /// Rust as TEXT: card titles, macro values, the active tab's label.
+    /// Light is the same rust as `accent` (5.14:1 / 5.75:1). Dark is lifted to
+    /// 0xE0674D: 5.09:1 on `background`, 4.69:1 on `surface`. Added 2026-10-08.
+    public static let accentText = Color(light: 0xB23C25, dark: 0xE0674D,
+                                         lightHighContrast: HighContrast.accentText.light,
+                                         darkHighContrast: HighContrast.accentText.dark)
+    /// Dimmed accent for pressed and disabled states. Put `textPrimary` on it,
+    /// not `onAccent` (which is 1.77:1 on the light value).
     public static let accentMuted = Color(light: 0xE7B3A6, dark: 0x883223)
     /// Sage green. The web's `--accent-2`, used where a second accent is needed.
     public static let accentSecondary = Color(light: 0x56664F, dark: 0x7C8B7A)
@@ -39,13 +48,33 @@ public enum Theme {
     public static let onAccent = Color(light: 0xFFFAF3, dark: 0xF7F1E8)
 
     public static let textPrimary = Color(light: 0x26221E, dark: 0xEDE7DD)
-    public static let textSecondary = Color(light: 0x665E52, dark: 0xA39C8E)
-    public static let hairline = Color(light: 0xDCD3C5, dark: 0x3A3733)
+    public static let textSecondary = Color(light: 0x665E52, dark: 0xA39C8E,
+                                            lightHighContrast: HighContrast.textSecondary.light,
+                                            darkHighContrast: HighContrast.textSecondary.dark)
+    /// 1.3-1.45:1 against the grounds: decoration, not a boundary. Under
+    /// Increase Contrast it reaches 3:1 (WCAG 1.4.11), because it is the only
+    /// edge of an unselected chip and a ghost button.
+    public static let hairline = Color(light: 0xDCD3C5, dark: 0x3A3733,
+                                       lightHighContrast: HighContrast.hairline.light,
+                                       darkHighContrast: HighContrast.hairline.dark)
 
     /// The line round a card. Clear in dark, where a card already separates
     /// from the page by being lighter; a hairline in light, where parchment
     /// and near-white are too close in brightness to do that on their own.
-    public static let cardBorder = Color(light: 0xDCD3C5, dark: nil)
+    /// Under Increase Contrast both appearances get the 3:1 hairline.
+    public static let cardBorder = Color(light: 0xDCD3C5, dark: nil,
+                                         lightHighContrast: HighContrast.hairline.light,
+                                         darkHighContrast: HighContrast.hairline.dark)
+
+    /// Values used when Increase Contrast is on. Tokens not listed here do
+    /// not change. Internal so ThemeTests can check them: macOS cannot build a
+    /// high-contrast `NSAppearance` to resolve the colours through.
+    enum HighContrast {
+        static let accentText: (light: UInt32, dark: UInt32) = (0x962F1B, 0xEE8A70)
+        static let textSecondary: (light: UInt32, dark: UInt32) = (0x4E473D, 0xC9C2B5)
+        /// Also `cardBorder`'s, in both appearances.
+        static let hairline: (light: UInt32, dark: UInt32) = (0x857B6C, 0x777065)
+    }
 
     // MARK: Metrics
 
@@ -59,13 +88,24 @@ public enum Theme {
 
     // MARK: Type
 
-    /// Orange card heading — "Training", "Fuel so far today".
-    public static let cardTitle = Font.system(size: 17, weight: .bold)
-    /// Large figure — "635 kcal over".
-    public static let figure = Font.system(size: 26, weight: .bold)
-    public static let body = Font.system(size: 16)
-    public static let detail = Font.system(size: 14)
-    public static let sectionLabel = Font.system(size: 15, weight: .bold)
+    // Every token is a Dynamic Type text style, so it follows the person's
+    // reading size (2026-10-08). They were fixed `Font.system(size:)` values,
+    // which never scale. At the default size most land on the old point size:
+    // headline 17, callout 16, subheadline 15. Two had no exact style and
+    // moved to the nearest one: `detail` 14 -> 15 and `figure` 26 -> 28.
+
+    /// Orange card heading — "Training", "Fuel so far today". Headline (17), bold.
+    public static let cardTitle = Font.system(.headline, weight: .bold)
+    /// Large figure — "635 kcal over". Title (28), bold.
+    public static let figure = Font.system(.title, weight: .bold)
+    /// Callout (16).
+    public static let body = Font.system(.callout)
+    /// Subheadline (15).
+    public static let detail = Font.system(.subheadline)
+    /// Subheadline (15), bold.
+    public static let sectionLabel = Font.system(.subheadline, weight: .bold)
+    /// The label on a chip or a button. Subheadline (15).
+    public static let control = Font.system(.subheadline, weight: .semibold)
 }
 
 extension Color {
@@ -75,23 +115,40 @@ extension Color {
     /// Built on the platform colour's dynamic provider rather than
     /// `@Environment(\.colorScheme)`, so every existing `Theme.surface` call
     /// site adapts without being rewritten. `dark: nil` means clear in dark.
-    public init(light: UInt32, dark: UInt32?) {
+    ///
+    /// The high-contrast values are used when Increase Contrast is on; nil
+    /// means "same as the normal value".
+    public init(light: UInt32, dark: UInt32?,
+                lightHighContrast: UInt32? = nil, darkHighContrast: UInt32? = nil) {
+        func pick(isDark: Bool, isHigh: Bool) -> UInt32? {
+            Color.resolve(light: light, dark: dark, lightHighContrast: lightHighContrast,
+                          darkHighContrast: darkHighContrast, isDark: isDark, isHighContrast: isHigh)
+        }
         #if canImport(UIKit)
         self.init(uiColor: UIColor { traits in
-            if traits.userInterfaceStyle == .dark {
-                return dark.map(UIColor.init(hex:)) ?? .clear
-            }
-            return UIColor(hex: light)
+            pick(isDark: traits.userInterfaceStyle == .dark,
+                 isHigh: traits.accessibilityContrast == .high)
+                .map(UIColor.init(hex:)) ?? .clear
         })
         #elseif canImport(AppKit)
         self.init(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            if isDark { return dark.map(NSColor.init(hex:)) ?? .clear }
-            return NSColor(hex: light)
+            let match = appearance.bestMatch(from: [
+                .aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua,
+            ])
+            let isDark = match == .darkAqua || match == .accessibilityHighContrastDarkAqua
+            let isHigh = match == .accessibilityHighContrastAqua || match == .accessibilityHighContrastDarkAqua
+            return pick(isDark: isDark, isHigh: isHigh).map(NSColor.init(hex:)) ?? .clear
         })
         #else
         self.init(hex: light)
         #endif
+    }
+
+    /// Which value a dynamic colour shows. nil means clear.
+    static func resolve(light: UInt32, dark: UInt32?, lightHighContrast: UInt32?,
+                        darkHighContrast: UInt32?, isDark: Bool, isHighContrast: Bool) -> UInt32? {
+        if isDark { return (isHighContrast ? darkHighContrast : nil) ?? dark }
+        return (isHighContrast ? lightHighContrast : nil) ?? light
     }
 
     public init(hex: UInt32) {
@@ -208,7 +265,10 @@ public struct LiftCard<Content: View>: View {
             if let title {
                 Text(title)
                     .font(Theme.cardTitle)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentText)
+                    // Cards are the only structure on most screens; this puts
+                    // them in VoiceOver's Headings rotor.
+                    .accessibilityAddTraits(.isHeader)
             }
             content
         }
@@ -220,6 +280,10 @@ public struct LiftCard<Content: View>: View {
 
 /// Outlined when unselected, filled rust when selected — as in the Focus and
 /// Activity rows.
+///
+/// The selected label is `onAccent`, not `textPrimary`: `textPrimary` on the
+/// rust fill was 2.68:1 in light. The visible chip stays about 38pt tall; the
+/// tappable area is 44pt.
 public struct LiftChip: View {
     let label: String
     let isSelected: Bool
@@ -234,20 +298,35 @@ public struct LiftChip: View {
     public var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background {
-                    RoundedRectangle(cornerRadius: Theme.chipRadius)
-                        .fill(isSelected ? Theme.accent : .clear)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: Theme.chipRadius)
-                                .stroke(isSelected ? .clear : Theme.hairline, lineWidth: 1)
-                        }
-                }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LiftChipStyle(isSelected: isSelected))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct LiftChipStyle: ButtonStyle {
+    let isSelected: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let fill: Color = !isSelected ? .clear : (isEnabled ? Theme.accent : Theme.accentMuted)
+        let text: Color = !isSelected ? Theme.textSecondary : (isEnabled ? Theme.onAccent : Theme.textPrimary)
+        return configuration.label
+            .font(Theme.control.weight(.bold))
+            .foregroundStyle(text)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background {
+                RoundedRectangle(cornerRadius: Theme.chipRadius)
+                    .fill(fill)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Theme.chipRadius)
+                            .stroke(isSelected ? .clear : Theme.hairline, lineWidth: 1)
+                    }
+            }
+            .opacity(configuration.isPressed ? 0.75 : (isEnabled || isSelected ? 1 : 0.5))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 
@@ -261,6 +340,10 @@ public struct LiftChip: View {
 /// Not a filled block. The native builds had been drawing the selected tab as a
 /// solid accent rectangle, which reads as a button rather than a tab and is the
 /// most visible difference between the native apps and the browser.
+///
+/// VoiceOver hears "selected" on the current tab, and the row is announced as
+/// a tab bar. Top-level app sections belong in a system `TabView`; this row is
+/// for in-screen section switching.
 public struct LiftTabButton: View {
     let label: String
     let isSelected: Bool
@@ -276,19 +359,25 @@ public struct LiftTabButton: View {
         Button(action: action) {
             VStack(spacing: 0) {
                 Text(label)
-                    // 14/600 with 1.2pt of tracking, from `nav button` in the
-                    // web build's stylesheet.
-                    .font(.system(size: 14, weight: .semibold))
+                    // 600 weight with 1.2pt of tracking, from `nav button` in
+                    // the web build's stylesheet. Subheadline, so it scales.
+                    .font(Theme.control)
                     .tracking(1.2)
-                    .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
+                    .foregroundStyle(isSelected ? Theme.accentText : Theme.textSecondary)
+                    .multilineTextAlignment(.center)
                     .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
                 Rectangle()
                     .fill(isSelected ? Theme.accent : .clear)
                     .frame(height: 2)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityShowsLargeContentViewer {
+            Text(label)
+        }
     }
 }
 
@@ -306,6 +395,8 @@ public struct LiftTabBar<Content: View>: View {
             .background(alignment: .bottom) {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isTabBar)
     }
 }
 
@@ -314,6 +405,8 @@ public struct LiftTabBar<Content: View>: View {
 /// The native apps had been rendering primary actions as bare accent-coloured
 /// text ("Set my goal"), which reads as a link and is easy to miss next to the
 /// web's filled pill.
+///
+/// Disabled, the fill drops to `accentMuted` with a `textPrimary` label.
 public struct LiftButton: View {
     let title: String
     let isGhost: Bool
@@ -328,22 +421,60 @@ public struct LiftButton: View {
     public var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isGhost ? Theme.textPrimary : Theme.onAccent)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background {
-                    Capsule()
-                        .fill(isGhost ? Color.clear : Theme.accent)
-                        .overlay { Capsule().stroke(isGhost ? Theme.hairline : .clear, lineWidth: 1) }
-                }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LiftButtonStyle(isGhost: isGhost))
+    }
+}
+
+private struct LiftButtonStyle: ButtonStyle {
+    let isGhost: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let text: Color = isGhost ? Theme.textPrimary : (isEnabled ? Theme.onAccent : Theme.textPrimary)
+        let fill: Color = isGhost ? .clear : (isEnabled ? Theme.accent : Theme.accentMuted)
+        return configuration.label
+            .font(Theme.control)
+            .foregroundStyle(text)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .frame(minHeight: 44)
+            .background {
+                Capsule()
+                    .fill(fill)
+                    .overlay { Capsule().stroke(isGhost ? Theme.hairline : .clear, lineWidth: 1) }
+            }
+            .opacity(configuration.isPressed ? 0.75 : (isGhost && !isEnabled ? 0.5 : 1))
+            .contentShape(Capsule())
+    }
+}
+
+/// Label and value side by side, stacked instead when the text is too large
+/// to fit on one line (accessibility text sizes).
+private struct LabelValueLayout<Label: View, Value: View>: View {
+    @ViewBuilder let label: Label
+    @ViewBuilder let value: Value
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                label
+                Spacer(minLength: 8)
+                value
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                label
+                value
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
 /// Label left, value right, with a full-width progress rule beneath —
-/// the macro rows on the Home tab.
+/// the macro rows on the Home tab. VoiceOver reads it as one element:
+/// "Protein, 120 of 200 g".
 public struct MacroProgressRow: View {
     let label: String
     let current: Double
@@ -358,20 +489,26 @@ public struct MacroProgressRow: View {
     }
 
     private var fraction: Double {
-        guard goal > 0 else { return 0 }
-        return min(current / goal, 1)
+        guard goal > 0, current.isFinite, goal.isFinite else { return 0 }
+        return max(0, min(current / goal, 1))
+    }
+
+    /// Whole numbers, through the guarded formatter: `Int(_:)` traps on NaN,
+    /// infinity and past Int.max.
+    private static func whole(_ value: Double) -> String {
+        CookFormat.trimmed(value.isFinite ? value.rounded(.towardZero) : value)
     }
 
     public var body: some View {
         VStack(spacing: 6) {
-            HStack {
+            LabelValueLayout {
                 Text(label)
                     .font(Theme.body)
                     .foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Text("\(Int(current)) / \(Int(goal)) \(unit)")
+            } value: {
+                Text("\(Self.whole(current)) / \(Self.whole(goal)) \(unit)")
                     .font(Theme.body)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentText)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -381,10 +518,14 @@ public struct MacroProgressRow: View {
             }
             .frame(height: 3)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue("\(Self.whole(current)) of \(Self.whole(goal)) \(unit)")
     }
 }
 
-/// Plain label/value row — the "Fuel so far today" list.
+/// Plain label/value row — the "Fuel so far today" list. One VoiceOver
+/// element: "Protein, 120 g".
 public struct StatRow: View {
     let label: String
     let value: String
@@ -395,11 +536,12 @@ public struct StatRow: View {
     }
 
     public var body: some View {
-        HStack {
+        LabelValueLayout {
             Text(label).font(Theme.body).foregroundStyle(Theme.textPrimary)
-            Spacer()
+        } value: {
             Text(value).font(Theme.body).foregroundStyle(Theme.textPrimary)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 

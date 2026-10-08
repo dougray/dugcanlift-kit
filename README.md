@@ -34,6 +34,37 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### Unreleased — accessibility, rust text and palette parity
+
+Fixes from the 2026-10-08 Impeccable audit. Not tagged yet. Android's `liftcore` has the matching palette and display changes, also untagged.
+
+**Colour**
+
+- `Theme.accentText` added: light `B23C25` (same as `accent`), dark `E0674D`. Use it for rust TEXT. Dark `accent` (`C1442C`) was 3.39:1 on `background` and 3.12:1 on `surface`; `E0674D` is 5.09:1 and 4.69:1. `accent` is unchanged and is now for fills only (chips, buttons, progress, the tab rule). `LiftCard` titles, `MacroProgressRow` values and the selected `LiftTabButton` label use it.
+- Selected `LiftChip` label is `onAccent`, not `textPrimary` (was 2.68:1 light, 4.13:1 dark; now 5.67:1 and 4.53:1).
+- Increase Contrast: `Color(light:dark:)` gains optional `lightHighContrast:` / `darkHighContrast:` parameters (source-compatible). `hairline` and `cardBorder` go to `857B6C` / `777065` (3:1 or better), `textSecondary` to `4E473D` / `C9C2B5`, `accentText` to `962F1B` / `EE8A70`. In dark, `cardBorder` becomes visible under Increase Contrast.
+- `Tests/LiftCoreTests/Fixtures/palette.json` is the canonical token list. `ThemeTests` checks every token against it, checks that every `textPairs` entry is 4.5:1 or better in both appearances, and compares it byte for byte with the Android kit's copy when that checkout sits beside this one.
+
+**Type**
+
+- All five type tokens are Dynamic Type text styles: `cardTitle` = headline bold, `figure` = title bold, `body` = callout, `detail` = subheadline, `sectionLabel` = subheadline bold. At the default size two change: `detail` 14 → 15pt and `figure` 26 → 28pt. The rest keep their point size.
+- `Theme.control` added (subheadline semibold), used by chips, tabs and buttons, which had inline fixed sizes.
+- `MacroProgressRow` and `StatRow` stack the value under the label when one line does not fit (accessibility sizes).
+
+**Components**
+
+- `LiftChip` and `LiftTabButton` expose `.isSelected` to VoiceOver. `LiftTabBar` is announced as a tab bar. Tabs support the Large Content Viewer.
+- `LiftCard` titles carry `.isHeader`, so they appear in the Headings rotor.
+- `MacroProgressRow` is one VoiceOver element ("Protein, 120 of 200 g"), and `StatRow` is combined. `MacroProgressRow` no longer traps on NaN, infinite or huge values.
+- `LiftChip` hit area is at least 44pt (the visible chip is unchanged). `LiftButton` is at least 44pt.
+- `LiftChip` and `LiftButton` are `ButtonStyle`s: they dim when pressed, and when disabled the filled variants use `accentMuted` with a `textPrimary` label.
+
+**Fixes**
+
+- `RecipeIngredient.displayText` no longer crashes on a quantity past `Int.max` ("99999999999999999999 g oats" now reads "1e+20 g oats"). It now uses `CookFormat.trimmed` rather than an unguarded private copy, and a quantity that overflows to infinity shows the raw line.
+
+**No schema change.** Nothing here is a `@Model` property.
+
 ### 1.11.0 — routes with no map
 
 A route drawn with no tile server, so no tile server learns where the route is. `RouteProjection` is a port of Coach web's `coach/route.js` `project()`, checked point for point against `Tests/LiftCoreTests/Fixtures/route-projection-expected.json`, which route.js wrote (`scripts/make-route-projection-fixture.mjs`) and which is never regenerated from Swift. `RouteCanvas` renders the projected line; a guard in the Canvas closure handles zero-sized layout passes. `NoNetworkTests` fails the build if LiftCore or LiftReference makes a request.

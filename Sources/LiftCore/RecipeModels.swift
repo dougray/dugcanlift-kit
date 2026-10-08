@@ -171,16 +171,15 @@ public final class RecipeIngredient {
         // `CookFormat.amountsLabel` drops it the same way for the shopping
         // list; this is the same rule for a single line.
         let printedUnit = unit == IngredientParser.countUnit ? nil : unit
-        let amount = [qty.map(Self.trimmed), printedUnit]
+        // A digit run too long for a Double parses to infinity; the person's
+        // own words are better than "inf g oats".
+        if let qty, !qty.isFinite { return rawText }
+        // `CookFormat.trimmed`, not a private copy: the copy that lived here
+        // missed the Int.max guard and crashed on "99999999999999999999 g oats".
+        let amount = [qty.map(CookFormat.trimmed), printedUnit]
             .compactMap { $0 }
             .joined(separator: " ")
         return amount.isEmpty ? item : "\(amount) \(item)"
-    }
-
-    private static func trimmed(_ value: Double) -> String {
-        value == value.rounded()
-            ? String(Int(value))
-            : String(format: "%g", value)
     }
 }
 

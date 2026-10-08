@@ -103,4 +103,27 @@ final class IngredientParserTests: XCTestCase {
         let measured = IngredientParser.parse("2 tbsp olive oil", sortOrder: 0)
         XCTAssertEqual(measured.displayText, "2 tbsp olive oil")
     }
+
+    func testDisplayTextSurvivesAnOversizedQuantity() {
+        // 1e20 equals its rounded self, so the old private formatter reached
+        // `Int(1e20)` and trapped while the recipe list rendered.
+        let huge = IngredientParser.parse("99999999999999999999 g oats", sortOrder: 0)
+        XCTAssertEqual(huge.displayText, "1e+20 g oats")
+        // Too many digits for a Double at all: show the person's own line.
+        let line = String(repeating: "9", count: 400) + " g oats"
+        XCTAssertEqual(IngredientParser.parse(line, sortOrder: 0).displayText, line)
+    }
+
+    /// The same cases and strings as `FormatTest` in dugcanlift-kit-android,
+    /// so the two platforms print a quantity the same way.
+    func testTrimmedMatchesAndroidTrimZeros() {
+        let cases: [(Double, String)] = [
+            (4, "4"), (2.5, "2.5"), (1.0 / 3, "0.333333"), (1.5, "1.5"),
+            (0.1 + 0.2, "0.3"), (1e20, "1e+20"), (-2, "-2"), (1234567.5, "1.23457e+06"),
+        ]
+        for (value, expected) in cases {
+            XCTAssertEqual(CookFormat.trimmed(value), expected, "\(value)")
+        }
+        XCTAssertEqual(IngredientParser.parse("1/3 cup flour", sortOrder: 0).displayText, "0.333333 cup flour")
+    }
 }

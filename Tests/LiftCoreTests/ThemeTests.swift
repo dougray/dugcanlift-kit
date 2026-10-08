@@ -62,6 +62,7 @@ final class ThemeTests: XCTestCase {
         "background": Theme.background, "surface": Theme.surface,
         "accent": Theme.accent, "accentText": Theme.accentText,
         "accentMuted": Theme.accentMuted, "accentSecondary": Theme.accentSecondary,
+        "accentSecondaryText": Theme.accentSecondaryText,
         "onAccent": Theme.onAccent, "textPrimary": Theme.textPrimary,
         "textSecondary": Theme.textSecondary, "hairline": Theme.hairline,
         "cardBorder": Theme.cardBorder,
@@ -144,7 +145,7 @@ final class ThemeTests: XCTestCase {
         let hc = Theme.HighContrast.self
         for (dark, grounds) in [(false, ["F4EFE7", "FFFCF7"]), (true, ["1C1B19", "242220"])] {
             for ground in grounds {
-                for text in [hc.accentText, hc.textSecondary] {
+                for text in [hc.accentText, hc.accentSecondaryText, hc.textSecondary] {
                     XCTAssertGreaterThanOrEqual(contrast(hex(dark ? text.dark : text.light), ground), 6)
                 }
                 XCTAssertGreaterThanOrEqual(contrast(hex(dark ? hc.hairline.dark : hc.hairline.light), ground), 3)

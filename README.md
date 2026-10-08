@@ -34,6 +34,12 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.14.0 — readable sage text
+
+- `Theme.accentSecondaryText` added: light `56664F` (same as `accentSecondary`, 5.38:1 on `background`, 6.02:1 on `surface`), dark `879585` (same hue, lighter: 5.46:1 on `background`, 5.03:1 on `surface`, 4.54:1 on `2C2A27`). Dark `accentSecondary` (`7C8B7A`) is 4.40:1 on `surface`, below AA for text. Under Increase Contrast it is `465341` (7.13:1 / 7.97:1) in light and `A6B0A4` (7.68:1 / 7.07:1) in dark.
+- Rule, same as rust: sage as TEXT is `accentSecondaryText`; sage as a FILL or LINE stays `accentSecondary`. The kit's only sage use, `RouteCanvas`'s start dot, is a fill and is unchanged.
+- `palette.json` gains `accentSecondaryText` (Android `ACCENT2_TEXT`) and its two text pairs, so `ThemeTests` and `DclPaletteTest` both hold it to 4.5:1. Android's `liftcore` has the matching `DclPalette.ACCENT2_TEXT`.
+
 ### 1.13.0 — readable rust tint
 
 - `.liftScreen()` now applies `.tint(Theme.accentText)` instead of `.tint(Theme.accent)`. Visible change: tinted controls and plain text buttons/links inside a lift screen use the lighter rust in dark mode (`E0674D`, 5.09:1 on `background`, 4.69:1 on `surface`; was `C1442C` at 3.39:1 / 3.12:1). Under Increase Contrast they pick up `accentText`'s `962F1B` / `EE8A70`. Light mode is unchanged: `accentText` light is `B23C25`, the same as `accent`.

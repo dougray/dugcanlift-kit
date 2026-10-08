@@ -42,8 +42,18 @@ public enum Theme {
     /// Dimmed accent for pressed and disabled states. Put `textPrimary` on it,
     /// not `onAccent` (which is 1.77:1 on the light value).
     public static let accentMuted = Color(light: 0xE7B3A6, dark: 0x883223)
-    /// Sage green. The web's `--accent-2`, used where a second accent is needed.
+    /// Sage green as a FILL or LINE: dots, rules, strokes, the route's start
+    /// marker. The web's `--accent-2`. Not for text in dark: 0x7C8B7A is
+    /// 4.40:1 on `surface`, below AA. Use `accentSecondaryText`.
     public static let accentSecondary = Color(light: 0x56664F, dark: 0x7C8B7A)
+    /// Sage as TEXT. Light is the same sage as `accentSecondary` (5.38:1 on
+    /// `background`, 6.02:1 on `surface`). Dark is lifted, same hue, to
+    /// 0x879585: 5.46:1 on `background`, 5.03:1 on `surface` (4.54:1 even on
+    /// 0x2C2A27). Increase Contrast: 0x465341 (7.13:1 / 7.97:1) and 0xA6B0A4
+    /// (7.68:1 / 7.07:1). Added 2026-10-08 in 1.14.0.
+    public static let accentSecondaryText = Color(light: 0x56664F, dark: 0x879585,
+                                                  lightHighContrast: HighContrast.accentSecondaryText.light,
+                                                  darkHighContrast: HighContrast.accentSecondaryText.dark)
     /// Foreground on a filled accent surface. The web's button colour.
     public static let onAccent = Color(light: 0xFFFAF3, dark: 0xF7F1E8)
 
@@ -71,6 +81,7 @@ public enum Theme {
     /// high-contrast `NSAppearance` to resolve the colours through.
     enum HighContrast {
         static let accentText: (light: UInt32, dark: UInt32) = (0x962F1B, 0xEE8A70)
+        static let accentSecondaryText: (light: UInt32, dark: UInt32) = (0x465341, 0xA6B0A4)
         static let textSecondary: (light: UInt32, dark: UInt32) = (0x4E473D, 0xC9C2B5)
         /// Also `cardBorder`'s, in both appearances.
         static let hairline: (light: UInt32, dark: UInt32) = (0x857B6C, 0x777065)

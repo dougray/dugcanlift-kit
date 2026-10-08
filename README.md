@@ -34,9 +34,9 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
-### Unreleased — accessibility, rust text and palette parity
+### 1.12.0 — accessibility, rust text and palette parity
 
-Fixes from the 2026-10-08 Impeccable audit. Not tagged yet. Android's `liftcore` has the matching palette and display changes, also untagged.
+Fixes from the 2026-10-08 Impeccable audit. Android's `liftcore` 1.7.0 has the matching palette and display changes.
 
 **Colour**
 

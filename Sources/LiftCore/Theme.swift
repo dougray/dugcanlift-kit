@@ -76,6 +76,10 @@ public enum Theme {
         static let hairline: (light: UInt32, dark: UInt32) = (0x857B6C, 0x777065)
     }
 
+    /// The tint `liftScreen()` applies: rust as TEXT, so tinted text buttons,
+    /// links and controls read at AA in dark. Was `accent` (3.39:1) before 1.13.0.
+    static let screenTint: Color = accentText
+
     // MARK: Metrics
 
     /// 12, matching the web's `.card` radius. Was 14.
@@ -569,7 +573,7 @@ extension View {
         self
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .scrollBounceBehavior(.always)
-            .tint(Theme.accent)
+            .tint(Theme.screenTint)
             .foregroundStyle(Theme.textPrimary)
     }
 }

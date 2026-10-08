@@ -34,6 +34,15 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(hex(Theme.cardBorder, dark: true), "clear", "dark cards never had a border")
     }
 
+    /// `liftScreen()` tints with rust-as-text, not the fill rust: tinted text
+    /// buttons were 3.39:1 in dark with `accent`. Light is unchanged.
+    func testScreenTintIsTheReadableRust() {
+        XCTAssertEqual(hex(Theme.screenTint, dark: true), "E0674D")
+        XCTAssertEqual(hex(Theme.screenTint, dark: false), "B23C25")
+        XCTAssertEqual(hex(Theme.screenTint, dark: false), hex(Theme.accent, dark: false),
+                       "light mode must look the same as before 1.13.0")
+    }
+
     func testTheApprovedLightPalette() {
         XCTAssertEqual(hex(Theme.background, dark: false), "F4EFE7")
         XCTAssertEqual(hex(Theme.surface, dark: false), "FFFCF7")

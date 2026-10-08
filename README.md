@@ -34,6 +34,12 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.13.0 — readable rust tint
+
+- `.liftScreen()` now applies `.tint(Theme.accentText)` instead of `.tint(Theme.accent)`. Visible change: tinted controls and plain text buttons/links inside a lift screen use the lighter rust in dark mode (`E0674D`, 5.09:1 on `background`, 4.69:1 on `surface`; was `C1442C` at 3.39:1 / 3.12:1). Under Increase Contrast they pick up `accentText`'s `962F1B` / `EE8A70`. Light mode is unchanged: `accentText` light is `B23C25`, the same as `accent`.
+- Rule, now applied everywhere in the kit: rust as TEXT or a tint is `accentText`; rust as a FILL (chip and button backgrounds, progress bars, the tab underline, the route line) stays `accent`. Every other rust use in the kit already followed it.
+- Internal `Theme.screenTint` (= `accentText`) names the tint; `ThemeTests.testScreenTintIsTheReadableRust` pins it.
+
 ### 1.12.0 — accessibility, rust text and palette parity
 
 Fixes from the 2026-10-08 Impeccable audit. Android's `liftcore` 1.7.0 has the matching palette and display changes.

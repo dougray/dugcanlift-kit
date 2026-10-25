@@ -92,7 +92,7 @@ public actor ReferenceDatabase {
     private var foodQueue: DatabaseQueue?
     private var exerciseQueue: DatabaseQueue?
     private var recipeQueue: DatabaseQueue?
-    private var foodIndexCache: (records: [FoodRecord], names: [FoodName])?
+    private var foodIndexCache: (records: [FoodRecord], index: FoodIndex)?
 
     /// Designated initializer. `Bundle.module` cannot be used as a default
     /// argument value here — SwiftPM generates it `internal`, and Swift
@@ -175,7 +175,7 @@ public actor ReferenceDatabase {
     public func findFoods(_ text: String, limit: Int = 30) throws -> FoodSearchResults {
         guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else { return .none }
         let index = try foodIndex()
-        let ranked = FoodRanking.rank(index.names, for: FoodQuery(text), limit: limit)
+        let ranked = FoodRanking.rank(index.index, for: FoodQuery(text), limit: limit)
         return FoodSearchResults(foods: ranked.indices.map { index.records[$0] },
                                  matchesEveryWord: ranked.matchesEveryWord)
     }
@@ -183,14 +183,14 @@ public actor ReferenceDatabase {
     /// Every food and its name read for ranking, loaded on the first search:
     /// 7,928 rows, small enough to rank in memory, as LIFT web does with the
     /// same data.
-    private func foodIndex() throws -> (records: [FoodRecord], names: [FoodName]) {
+    private func foodIndex() throws -> (records: [FoodRecord], index: FoodIndex) {
         if let foodIndexCache { return foodIndexCache }
         let records = try foods().read { db in
             try FoodRecord.fetchAll(db, sql: "SELECT * FROM foods ORDER BY rowid")
         }
-        let index = (records: records, names: records.map { FoodName($0.name, id: $0.id) })
-        foodIndexCache = index
-        return index
+        let loaded = (records: records, index: FoodIndex(records.map { ($0.name, $0.id) }))
+        foodIndexCache = loaded
+        return loaded
     }
 
     public func food(barcode: String) throws -> FoodRecord? {

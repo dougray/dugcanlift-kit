@@ -4,8 +4,8 @@ import Foundation
 public struct FoodSearchResults: Sendable, Equatable {
     public var foods: [FoodRecord]
     /// False when no food has every word that was typed, so `foods` are the
-    /// closest ones instead: the most words matched.
-    /// A screen should say so rather than present them as answers.
+    /// closest ones instead: the most words matched. A screen should say so
+    /// rather than present them as answers.
     public var matchesEveryWord: Bool
 
     public init(foods: [FoodRecord], matchesEveryWord: Bool) {
@@ -23,7 +23,7 @@ public struct FoodSearchResults: Sendable, Equatable {
 /// USDA name contains "2" or "oz". Filler goes too ("oats with milk").
 struct FoodQuery {
     /// What the food must be called. The last is the food itself, usually,
-    /// and the only one that may be unfinished.
+    /// and the one that may be unfinished.
     let words: [String]
     /// A size ("medium", "large"). It helps find a row that says it and is
     /// never a word a food must have.
@@ -33,7 +33,8 @@ struct FoodQuery {
     let letters: String
 
     /// More words than anyone types for one food. A pasted paragraph is cut
-    /// here rather than ranked word by word against every row.
+    /// to its first words and its last, the food, rather than ranked word by
+    /// word against every row.
     static let mostWords = 8
 
     init(_ text: String) {
@@ -42,7 +43,10 @@ struct FoodQuery {
         var sizes = kept.filter { FoodQuery.sizeWords.contains($0) }
         // "large" alone is still something to look for.
         if words.isEmpty { (words, sizes) = (sizes, []) }
-        self.words = Array(words.prefix(FoodQuery.mostWords))
+        if words.count > FoodQuery.mostWords, let food = words.last {
+            words = Array(words.prefix(FoodQuery.mostWords - 1)) + [food]
+        }
+        self.words = words
         self.sizes = Array(sizes.prefix(FoodQuery.mostWords))
         letters = FoodQuery.letters(of: text)
     }
@@ -69,12 +73,14 @@ struct FoodQuery {
         String(fold(text).filter { $0.isLetter || $0.isNumber })
     }
 
+    /// Not "half": that is also "half and half", a cream.
     private static let units: Set<String> = [
         "g", "gram", "grams", "kg", "mg", "oz", "ounce", "ounces", "lb", "lbs",
         "pound", "pounds", "ml", "l", "cup", "cups", "tbsp", "tablespoon",
         "tablespoons", "tsp", "teaspoon", "teaspoons", "slice", "slices",
         "piece", "pieces", "serving", "servings", "scoop", "scoops", "glass",
-        "glasses", "bowl", "bowls", "half", "dozen",
+        "glasses", "bowl", "bowls", "dozen", "can", "cans", "bottle", "bottles",
+        "packet", "packets", "jar", "jars", "carton", "cartons",
     ]
     private static let filler: Set<String> = [
         "a", "an", "the", "and", "or", "with", "of", "on", "in",
@@ -106,79 +112,107 @@ struct FoodQuery {
     }
 }
 
+/// Every word form food.db uses, numbered once, so ranking compares
+/// integers rather than strings -- a search runs on every pause in typing.
+struct FoodVocabulary {
+    private var ids: [String: Int] = [:]
+    /// Forms that appear in a plain food, one that is not a brand's. A word
+    /// outside this set ("whopper", "mcmuffin") is someone asking for the
+    /// product; a word inside it ("toast", "soy") is finished as typed.
+    private(set) var plain: Set<Int> = []
+    /// The same plain forms as text, sorted, to ask whether a plain word
+    /// starts with something typed.
+    private(set) var plainWords: [String] = []
+
+    mutating func ids(for forms: Set<String>, plain isPlain: Bool) -> [Int] {
+        forms.map { form in
+            let id = ids[form] ?? { let next = ids.count; ids[form] = next; return next }()
+            if isPlain { plain.insert(id) }
+            return id
+        }
+    }
+
+    func ids(for forms: Set<String>) -> [Int] { forms.compactMap { ids[$0] } }
+
+    mutating func finish() {
+        plainWords = ids.filter { plain.contains($0.value) }.keys.sorted()
+    }
+
+    /// Whether some plain food has a word starting with `prefix`.
+    func plainWordStarts(with prefix: String) -> Bool {
+        var low = 0, high = plainWords.count
+        while low < high {
+            let mid = (low + high) / 2
+            if plainWords[mid] < prefix { low = mid + 1 } else { high = mid }
+        }
+        return low < plainWords.count && plainWords[low].hasPrefix(prefix)
+    }
+}
+
 /// One food's name, read once into the shape the ranking needs.
 struct FoodName {
     struct Word {
         let offset: Int
         let text: String
-        let forms: Set<String>
+        let forms: [Int]
     }
 
     let words: [Word]
     let length: Int
-    /// A brand or restaurant row ("CHICK-FIL-A, ...", "PIZZA HUT ...",
-    /// "Fast foods, ...", "Babyfood, ..."), as the letters someone would type
-    /// to ask for it. nil for a plain food.
+    /// A brand ("CHICK-FIL-A, ...", "PIZZA HUT ...") or babyfood row, as the
+    /// letters someone would type to ask for it. nil for a plain food.
     let setAsideUnless: String?
     /// The brand alone, so "chickfila" typed as one word finds the rows that
     /// USDA spells "CHICK-FIL-A". nil when the row has no brand.
     let brand: String?
     let meatless: Bool
     /// What this row answers to, when it is the everyday form of a staple.
-    let everyday: Set<String>?
+    let everyday: (forms: [Int], words: [String])?
     /// The word the name is a name of. USDA leads with it and qualifies after
-    /// the comma, and the head of the lead is its last word: "Sweet potato,
-    /// cooked" is a potato, "Olive loaf, pork" is a loaf. A lead that is only
-    /// a group ("Beverages", "Fish") hands over to the part after it:
-    /// "Fish, salmon, Atlantic" is a salmon.
+    /// the comma, and the head of the lead is its last word before any "with"
+    /// or "and": "Sweet potato, cooked" is a potato, "Olive loaf, pork" a
+    /// loaf, "Potato salad with egg" a salad. A lead that is only a group
+    /// ("Beverages", "Fish", "Fast foods") or a brand hands over to the part
+    /// after it: "Fish, salmon, Atlantic" is a salmon, "BURGER KING, WHOPPER"
+    /// a whopper.
     let head: Word?
 
-    init(_ name: String, id: String) {
-        var words: [Word] = []
+    init(_ name: String, id: String, vocabulary: inout FoodVocabulary) {
+        let brand = FoodName.brand(name)
+        let folded = FoodQuery.fold(name)
+        var texts: [(offset: Int, text: String)] = []
         var offset = 0
         var current = ""
-        func close() {
-            guard !current.isEmpty else { return }
-            words.append(Word(offset: offset - current.count, text: current,
-                              forms: FoodQuery.forms(of: current)))
-            current = ""
-        }
-        for character in FoodQuery.fold(name) {
+        for character in folded {
             if character.isLetter || character.isNumber || character == "%" {
                 current.append(character)
-            } else {
-                close()
+            } else if !current.isEmpty {
+                texts.append((offset - current.count, current))
+                current = ""
             }
             offset += 1
         }
-        close()
+        if !current.isEmpty { texts.append((offset - current.count, current)) }
 
+        let words = texts.map {
+            Word(offset: $0.offset, text: $0.text,
+                 forms: vocabulary.ids(for: FoodQuery.forms(of: $0.text), plain: brand == nil))
+        }
         self.words = words
         length = name.count
-        let brand = FoodName.brand(name)
         self.brand = brand
         setAsideUnless = FoodName.group(name) ?? brand
         meatless = words.contains { $0.text == "meatless" }
-        everyday = FoodRanking.everyday[id].map { Set($0.flatMap(FoodQuery.forms)) }
-        head = FoodName.head(name, words: words)
-    }
-
-    private static let groupLeads: Set<String> = [
-        "beverages", "fish", "cereals", "cereals ready-to-eat", "nuts", "spices",
-        "alcoholic beverage", "snacks", "candies",
-    ]
-
-    private static func head(_ name: String, words: [Word]) -> Word? {
-        let parts = FoodQuery.fold(name).split(separator: ",", omittingEmptySubsequences: false)
-        guard let lead = parts.first else { return nil }
-        var end = lead.count
-        if groupLeads.contains(lead.trimmingCharacters(in: .whitespaces)), parts.count > 1 {
-            end += 1 + parts[1].count
+        everyday = FoodRanking.everyday[id].map { called in
+            (vocabulary.ids(for: Set(called.flatMap(FoodQuery.forms)), plain: false), called)
         }
-        return words.last { $0.offset < end }
+        head = FoodName.head(folded, words: words, leadIsBrand: brand != nil
+                             && brand == FoodQuery.letters(of: String(name.prefix { $0 != "," })))
     }
 
-    private static let groups = ["fast food", "restaurant", "babyfood", "infant formula"]
+    /// Set aside like a brand. "Fast foods" and "Restaurant" rows are not:
+    /// they are generic dishes, and "cheeseburger" means one of them.
+    private static let groups = ["babyfood", "infant formula"]
 
     private static func group(_ name: String) -> String? {
         let lead = name.prefix { $0 != "," }.lowercased()
@@ -198,25 +232,65 @@ struct FoodName {
         guard !brand.isEmpty else { return nil }
         return FoodQuery.letters(of: brand.joined())
     }
+
+    private static let groupLeads: Set<String> = [
+        "beverages", "fish", "cereals", "cereals ready-to-eat", "nuts", "spices",
+        "alcoholic beverage", "snacks", "candies", "fast foods",
+    ]
+
+    private static func head(_ folded: String, words: [Word], leadIsBrand: Bool) -> Word? {
+        let parts = folded.split(separator: ",", omittingEmptySubsequences: false)
+        guard let lead = parts.first else { return nil }
+        var start = 0
+        var part = Substring(lead)
+        if leadIsBrand || groupLeads.contains(lead.trimmingCharacters(in: .whitespaces)), parts.count > 1 {
+            start = lead.count + 1
+            part = parts[1]
+        }
+        // The noun ends where a qualifier starts.
+        var end = start + part.count
+        for stop in [";", "(", " with ", " and ", " or "] {
+            if let range = part.range(of: stop) {
+                end = min(end, start + part.distance(from: part.startIndex, to: range.lowerBound))
+            }
+        }
+        return words.last { $0.offset >= start && $0.offset < end }
+    }
+}
+
+/// Every food's name, read for ranking, and the vocabulary they share.
+struct FoodIndex {
+    let names: [FoodName]
+    let vocabulary: FoodVocabulary
+
+    init(_ foods: [(name: String, id: String)]) {
+        var vocabulary = FoodVocabulary()
+        names = foods.map { FoodName($0.name, id: $0.id, vocabulary: &vocabulary) }
+        vocabulary.finish()
+        self.vocabulary = vocabulary
+    }
 }
 
 /// Which foods a query finds, best first.
 ///
-/// A food is listed when it has at least one of the typed words. Only the
-/// last word may match the start of a longer word, because only the last can
-/// still be being typed: "chick" finds chicken, but "soy milk" does not find
-/// "non-soy". Two typed words may spell one of USDA's ("soy milk" is
-/// "Soymilk"). When some food has every word, only those are listed.
+/// A food is listed when it has at least one of the typed words. The last
+/// word may match the start of a longer word, because it can still be being
+/// typed ("chick"); an earlier one only when no plain food has it whole, so
+/// "mac and cheese" finds macaroni but "soy milk" does not find "non-soy".
+/// Two typed words may spell one of USDA's ("soy milk" is "Soymilk"). When
+/// some food has every word, only those are listed.
 ///
 /// Then, in order of weight:
 ///   1. More of the typed words.
-///   2. Any sizes typed ("medium").
-///   3. Plain foods before brand and restaurant rows and meatless stand-ins,
-///      unless that is what was typed.
-///   4. Whole words before the start of one, so "pea" is peas before peanut
+///   2. Plain foods before brand and babyfood rows and meatless stand-ins,
+///      unless the brand was typed, or a word only that product uses
+///      ("whopper").
+///   3. Whole words before the start of one, so "pea" is peas before peanut
 ///      butter, and "egg" is not "Eggnog".
-///   5. The everyday form of a staple (`everyday`), when the food word typed
+///   4. The everyday form of a staple (`everyday`), when the food word typed
 ///      is what that staple is called.
+///   5. Any sizes typed ("large"). After the everyday form: "2 large eggs"
+///      is a whole egg, not the shorter-named large egg yolk.
 ///   6. A name whose head is the food word -- the last word typed, which is
 ///      usually the food, the words before it describing it ("black coffee",
 ///      "string cheese"). `FoodName.head`: "potato" is potatoes before sweet
@@ -302,26 +376,27 @@ enum FoodRanking {
         "usda:169640": ["honey"], // Honey
         "usda:169655": ["sugar"], // Sugars, granulated
         "usda:171890": ["coffee"], // Beverages, coffee, brewed, prepared with tap water
+        "usda:174852": ["cola"], // Beverages, carbonated, cola, regular
         "usda:169098": ["juice"], // Orange juice, raw
         "usda:168746": ["beer"], // Alcoholic beverage, beer, regular, all
     ]
 
     /// What people type for a food USDA spells another way.
-    static let alsoWritten: [String: String] = ["oatmeal": "oats"]
+    static let alsoWritten: [String: String] = ["oatmeal": "oats", "coke": "cola"]
 
     /// Lower is better, compared in this order.
     private struct Score: Comparable {
         var missing: Int
-        var sizesMissing: Int
         var setAside: Int
         var startsOnly: Int
         var notEveryday: Int
+        var sizesMissing: Int
         var notHead: Int
         var place: Int
         var index: Int
 
         private var keys: [Int] {
-            [missing, sizesMissing, setAside, startsOnly, notEveryday, notHead, place, index]
+            [missing, setAside, startsOnly, notEveryday, sizesMissing, notHead, place, index]
         }
 
         static func < (a: Score, b: Score) -> Bool { a.keys.lexicographicallyPrecedes(b.keys) }
@@ -330,45 +405,72 @@ enum FoodRanking {
     private struct Fit {
         var whole: Bool
         var offset: Int
+        /// A form no plain food uses: the product's own word.
+        var brandWord = false
     }
 
-    /// Indices into `names`, best first, and whether they have every word.
-    static func rank(_ names: [FoodName], for query: FoodQuery,
+    /// One typed word, read against the vocabulary once per search.
+    private struct Typed {
+        let text: String
+        let forms: [Int]
+        /// May match the start of a longer word.
+        let mayBeShort: Bool
+        let brandWord: Bool
+    }
+
+    /// Indices into the index's names, best first, and whether they have
+    /// every word.
+    static func rank(_ index: FoodIndex, for query: FoodQuery,
                      limit: Int) -> (indices: [Int], matchesEveryWord: Bool) {
         let words = query.words
         guard !words.isEmpty, limit > 0 else { return ([], true) }
+        let vocabulary = index.vocabulary
         let last = words.count - 1
-        let forms = words.map(FoodQuery.forms)
-        let alternates = words.map { alsoWritten[$0].map { ($0, FoodQuery.forms(of: $0)) } }
+
+        func typed(_ text: String, last isLast: Bool) -> Typed {
+            let forms = vocabulary.ids(for: FoodQuery.forms(of: text))
+            let plain = forms.contains { vocabulary.plain.contains($0) }
+            // The product's own word: no plain food has it, and -- for a word
+            // that may still be being typed -- none starts with it either.
+            // "whopper" is Burger King's; "chick" is the start of chicken.
+            let ownWord = !forms.isEmpty && !plain && !(isLast && vocabulary.plainWordStarts(with: text))
+            return Typed(text: text, forms: forms,
+                         mayBeShort: isLast || (!plain && text.count >= 3),
+                         brandWord: ownWord)
+        }
+        let typedWords = words.indices.map { typed(words[$0], last: $0 == last) }
+        let alternates = words.indices.map { position in
+            alsoWritten[words[position]].map { typed($0, last: position == last) }
+        }
         // Two typed words that USDA writes as one: "soy milk", "Soymilk".
-        let joined = words.indices.dropLast().map { words[$0] + words[$0 + 1] }
-        let joinedForms = joined.map(FoodQuery.forms)
+        let joined: [Typed?] = words.indices.dropLast().map { position in
+            guard words[position].count >= 2, words[position + 1].count >= 2 else { return nil }
+            return typed(words[position] + words[position + 1], last: position + 1 == last)
+        }
         // The food word: as typed, as also written, or run into the word
         // before it ("soy milk" is a soymilk, not a milk).
-        let foodForms = forms[last].union(alternates[last]?.1 ?? []).union(joinedForms.last ?? [])
+        let foodForms = Set(typedWords[last].forms + (alternates[last]?.forms ?? [])
+                            + ((joined.last ?? nil)?.forms ?? []))
 
         var scored: [Score] = []
-        for (index, name) in names.enumerated() {
-            var fits: [Fit?] = words.indices.map { position in
-                let unfinished = position == last
-                return fit(words[position], forms: forms[position], unfinished: unfinished, in: name)
-                    ?? alternates[position].flatMap {
-                        fit($0.0, forms: $0.1, unfinished: unfinished, in: name)
-                    }
+        for (position, name) in index.names.enumerated() {
+            var fits: [Fit?] = words.indices.map { word in
+                fit(typedWords[word], in: name) ?? alternates[word].flatMap { fit($0, in: name) }
             }
-            for (position, word) in joined.enumerated()
-            where fits[position]?.whole != true || fits[position + 1]?.whole != true {
-                let unfinished = position + 1 == last
-                if let both = fit(word, forms: joinedForms[position], unfinished: unfinished, in: name) {
-                    fits[position] = Fit(whole: true, offset: both.offset)
-                    fits[position + 1] = both
-                }
+            for (pair, both) in joined.enumerated() {
+                guard let both, fits[pair]?.whole != true || fits[pair + 1]?.whole != true,
+                      let found = fit(both, in: name) else { continue }
+                fits[pair] = Fit(whole: true, offset: found.offset, brandWord: found.brandWord)
+                fits[pair + 1] = found
             }
             let found = fits.compactMap { $0 }
             guard !found.isEmpty else { continue }
 
             var setAside = 0
-            if let letters = name.setAsideUnless, !query.letters.contains(letters) { setAside += 1 }
+            if let letters = name.setAsideUnless, !query.letters.contains(letters),
+               !found.contains(where: { $0.whole && $0.brandWord }) {
+                setAside += 1
+            }
             if name.meatless, !words.contains("meatless") { setAside += 1 }
 
             let sizesFound = query.sizes.filter { size in
@@ -376,23 +478,23 @@ enum FoodRanking {
             }.count
 
             let isEveryday = fits[last] != nil && name.everyday.map { called in
-                !called.isDisjoint(with: foodForms)
-                    || called.contains { $0.hasPrefix(words[last]) }
+                called.forms.contains { foodForms.contains($0) }
+                    || called.words.contains { $0.hasPrefix(words[last]) }
             } == true
 
             let isHead = fits[last] != nil && name.head.map { head in
-                !head.forms.isDisjoint(with: foodForms)
+                head.forms.contains { foodForms.contains($0) }
                     || (words[last].count >= 3 && head.text.hasPrefix(words[last]))
             } == true
 
             scored.append(Score(missing: words.count - found.count,
-                                sizesMissing: query.sizes.count - sizesFound,
                                 setAside: setAside,
                                 startsOnly: found.filter { !$0.whole }.count,
                                 notEveryday: isEveryday ? 0 : 1,
+                                sizesMissing: query.sizes.count - sizesFound,
                                 notHead: isHead ? 0 : 1,
                                 place: found.reduce(0) { $0 + $1.offset } * 100 + name.length,
-                                index: index))
+                                index: position))
         }
 
         let everyWord = scored.contains { $0.missing == 0 }
@@ -401,24 +503,23 @@ enum FoodRanking {
         return (scored.prefix(limit).map(\.index), everyWord || scored.isEmpty)
     }
 
-    /// Where `word` sits in the name: a whole word (any shared form), or --
-    /// only for a word still being typed -- the start of one. A brand typed
-    /// as one word ("chickfila") is the brand at the front of the name.
-    private static func fit(_ word: String, forms: Set<String>, unfinished: Bool,
-                            in name: FoodName) -> Fit? {
+    /// Where a typed word sits in the name: a whole word (any shared form),
+    /// or the start of one when the word may be short. A brand typed as one
+    /// word ("chickfila") is the brand at the front of the name.
+    private static func fit(_ typed: Typed, in name: FoodName) -> Fit? {
         var best: Fit?
         for candidate in name.words {
-            let whole = !candidate.forms.isDisjoint(with: forms)
-            guard whole || (unfinished && candidate.text.hasPrefix(word)) else { continue }
+            let whole = candidate.forms.contains { typed.forms.contains($0) }
+            guard whole || (typed.mayBeShort && candidate.text.hasPrefix(typed.text)) else { continue }
             if let current = best {
                 if current.whole && !whole { continue }
                 if current.whole == whole && current.offset <= candidate.offset { continue }
             }
-            best = Fit(whole: whole, offset: candidate.offset)
+            best = Fit(whole: whole, offset: candidate.offset, brandWord: whole && typed.brandWord)
         }
         if best?.whole != true, let brand = name.brand, brand.count > 3,
-           brand == word || (unfinished && word.count >= 3 && brand.hasPrefix(word)) {
-            best = Fit(whole: brand == word, offset: 0)
+           brand == typed.text || (typed.mayBeShort && typed.text.count >= 3 && brand.hasPrefix(typed.text)) {
+            best = Fit(whole: brand == typed.text, offset: 0, brandWord: brand == typed.text)
         }
         return best
     }

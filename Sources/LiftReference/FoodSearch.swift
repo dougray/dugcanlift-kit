@@ -174,7 +174,7 @@ struct FoodName {
     /// loaf, "Potato salad with egg" a salad. A lead that is only a group
     /// ("Beverages", "Fish", "Fast foods") or a brand hands over to the part
     /// after it: "Fish, salmon, Atlantic" is a salmon, "BURGER KING, WHOPPER"
-    /// a whopper.
+    /// a whopper, "Alcoholic beverage, distilled, whiskey" a whiskey.
     let head: Word?
 
     init(_ name: String, id: String, vocabulary: inout FoodVocabulary) {
@@ -235,18 +235,27 @@ struct FoodName {
 
     private static let groupLeads: Set<String> = [
         "beverages", "fish", "cereals", "cereals ready-to-eat", "nuts", "spices",
-        "alcoholic beverage", "snacks", "candies", "fast foods",
+        "alcoholic beverage", "snacks", "candies", "fast foods", "crustaceans",
+        "mollusks", "game meat",
     ]
+    /// A group's own sub-group, skipped as well: "Alcoholic beverage,
+    /// distilled, whiskey" is a whiskey.
+    private static let groupParts: Set<String> = ["distilled"]
 
     private static func head(_ folded: String, words: [Word], leadIsBrand: Bool) -> Word? {
         let parts = folded.split(separator: ",", omittingEmptySubsequences: false)
         guard let lead = parts.first else { return nil }
         var start = 0
-        var part = Substring(lead)
+        var index = 0
         if leadIsBrand || groupLeads.contains(lead.trimmingCharacters(in: .whitespaces)), parts.count > 1 {
             start = lead.count + 1
-            part = parts[1]
+            index = 1
+            while index + 1 < parts.count, groupParts.contains(parts[index].trimmingCharacters(in: .whitespaces)) {
+                start += parts[index].count + 1
+                index += 1
+            }
         }
+        let part = parts[index]
         // The noun ends where a qualifier starts.
         var end = start + part.count
         for stop in [";", "(", " with ", " and ", " or "] {
@@ -325,6 +334,7 @@ enum FoodRanking {
         "usda:167914": ["bacon"], // Pork, cured, bacon, cooked, baked
         "usda:175168": ["salmon"], // Fish, salmon, Atlantic, farmed, cooked, dry heat
         "usda:334194": ["tuna"], // Fish, tuna, light, canned in water, drained solids
+        "usda:175180": ["shrimp"], // Crustaceans, shrimp, cooked
         "usda:171287": ["egg"], // Egg, whole, raw, fresh
         "usda:173424": ["egg"], // Egg, whole, cooked, hard-boiled
         "usda:173423": ["egg"], // Egg, whole, cooked, fried
@@ -370,7 +380,7 @@ enum FoodRanking {
         "usda:173735": ["bean"], // Beans, black, mature seeds, cooked, boiled, without salt
         "usda:172421": ["lentil"], // Lentils, mature seeds, cooked, boiled, without salt
         // Everything else
-        "usda:324860": ["peanut", "butter"], // Peanut butter, smooth style, with salt
+        "usda:324860": ["butter"], // Peanut butter, smooth style, with salt -- not "peanuts"
         "usda:170567": ["almond"], // Nuts, almonds
         "usda:171413": ["oil"], // Oil, olive, salad or cooking
         "usda:169640": ["honey"], // Honey
@@ -382,7 +392,9 @@ enum FoodRanking {
     ]
 
     /// What people type for a food USDA spells another way.
-    static let alsoWritten: [String: String] = ["oatmeal": "oats", "coke": "cola"]
+    /// "diet" is USDA's "low calorie": without it "diet coke" led with
+    /// regular cola, about 140 kcal a can.
+    static let alsoWritten: [String: String] = ["oatmeal": "oats", "coke": "cola", "diet": "calorie"]
 
     /// Lower is better, compared in this order.
     private struct Score: Comparable {

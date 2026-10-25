@@ -92,6 +92,7 @@ public actor ReferenceDatabase {
     private var foodQueue: DatabaseQueue?
     private var exerciseQueue: DatabaseQueue?
     private var recipeQueue: DatabaseQueue?
+    private var foodIndexCache: (records: [FoodRecord], names: [FoodName])?
 
     /// Designated initializer. `Bundle.module` cannot be used as a default
     /// argument value here — SwiftPM generates it `internal`, and Swift
@@ -162,6 +163,34 @@ public actor ReferenceDatabase {
                 LIMIT ?
                 """, arguments: [pattern, limit])
         }
+    }
+
+    /// The search a person logging a meal types into. Unlike `searchFoods` it
+    /// never answers a food word with nothing: an amount is ignored, and when
+    /// no food has every word the closest ones come back, flagged as such.
+    /// Ranked by `FoodRanking`.
+    ///
+    /// `searchFoods` is left exactly as it was, because Coach costs a recipe
+    /// line from its first hit and a new ranking would change a dish's macros.
+    public func findFoods(_ text: String, limit: Int = 30) throws -> FoodSearchResults {
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else { return .none }
+        let index = try foodIndex()
+        let ranked = FoodRanking.rank(index.names, for: FoodQuery(text), limit: limit)
+        return FoodSearchResults(foods: ranked.indices.map { index.records[$0] },
+                                 matchesEveryWord: ranked.matchesEveryWord)
+    }
+
+    /// Every food and its name read for ranking, loaded on the first search:
+    /// 7,928 rows, small enough to rank in memory, as LIFT web does with the
+    /// same data.
+    private func foodIndex() throws -> (records: [FoodRecord], names: [FoodName]) {
+        if let foodIndexCache { return foodIndexCache }
+        let records = try foods().read { db in
+            try FoodRecord.fetchAll(db, sql: "SELECT * FROM foods ORDER BY rowid")
+        }
+        let index = (records: records, names: records.map { FoodName($0.name, id: $0.id) })
+        foodIndexCache = index
+        return index
     }
 
     public func food(barcode: String) throws -> FoodRecord? {

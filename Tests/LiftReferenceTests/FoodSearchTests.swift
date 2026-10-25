@@ -32,7 +32,9 @@ final class FoodSearchTests: XCTestCase {
     }
 
     /// The food is the last word; the ones before it describe it. Without this,
-    /// "black coffee" led with "Bear, black, meat".
+    /// "black coffee" led with "Bear, black, meat". It is a tie-break, not a
+    /// rule over word count: "turkey burger" is closer to ground turkey than
+    /// to a veggie burger, and "tuna salad sandwich" to tuna salad.
     func testClosestMatchesFavourTheLastWordTyped() async throws {
         for (query, food) in [("baked chicken", "chicken"), ("black coffee", "coffee"),
                               ("string cheese", "cheese")] {
@@ -40,6 +42,10 @@ final class FoodSearchTests: XCTestCase {
                 XCTAssertTrue(name.lowercased().contains(food), "\(query): \(name)")
             }
         }
+        let turkey = try await first("turkey burger")
+        XCTAssertTrue(turkey.hasPrefix("Turkey"), turkey)
+        let tuna = try await first("tuna salad sandwich")
+        XCTAssertTrue(tuna.lowercased().contains("tuna salad"), tuna)
     }
 
     /// LIFT asks for the amount on the next step, so an amount typed into the
@@ -62,8 +68,22 @@ final class FoodSearchTests: XCTestCase {
 
     func testAPercentIsAWordNotAnAmount() async throws {
         for name in try await names("2% milk") {
-            XCTAssertTrue(name.contains("2%"), name)
+            // "2%", not the end of "12%".
+            XCTAssertNotNil(name.range(of: #"(^|[^0-9.])2%"#, options: .regularExpression), name)
         }
+    }
+
+    /// "medium", "glass of": how much, not what. They help find a row that
+    /// has them and never make a right answer only "the closest".
+    func testSizesAreNotWordsAFoodMustHave() async throws {
+        for (query, lead) in [("1 medium banana", "Bananas, raw"), ("glass of milk", "Milk,"),
+                              ("1 scoop whey", "Beverages, Protein powder whey based")] {
+            let found = try await database.findFoods(query, limit: 1)
+            XCTAssertTrue(found.matchesEveryWord, query)
+            XCTAssertTrue(try XCTUnwrap(found.foods.first).name.hasPrefix(lead), query)
+        }
+        let eggs = try await database.findFoods("2 large eggs", limit: 1)
+        XCTAssertTrue(eggs.matchesEveryWord)
     }
 
     // MARK: The plain food first
@@ -124,6 +144,83 @@ final class FoodSearchTests: XCTestCase {
         XCTAssertTrue(pizza.hasPrefix("PIZZA HUT"), pizza)
     }
 
+    // MARK: Words that are not the food
+
+    /// A staple is lifted only by what it is called. A word in the middle of
+    /// its name ("salad or cooking", "canned in water", "with salt") is not
+    /// what it is, and must not pull it above the food that word names.
+    func testAWordInsideAStaplesNameDoesNotPullItUp() async throws {
+        let expected: [(String, (String) -> Bool)] = [
+            ("salad", { !$0.hasPrefix("Oil,") }),
+            ("water", { $0.hasPrefix("Water") }),
+            ("salt", { $0 == "Salt, table" }),
+            ("flour", { !$0.hasPrefix("Tortillas") }),
+            ("olives", { $0.hasPrefix("Olives,") }),
+            ("seeds", { !$0.hasPrefix("Lentils") }),
+            ("greens", { !$0.hasPrefix("Grapes") }),
+            ("peas", { $0.hasPrefix("Peas,") }),
+            ("pea", { $0.hasPrefix("Peas,") }),
+            ("almond milk", { $0.lowercased().contains("almond milk") }),
+        ]
+        for (query, isRight) in expected {
+            let top = try await first(query)
+            XCTAssertTrue(isRight(top), "\(query): \(top)")
+        }
+    }
+
+    /// Only the last word can still be being typed. "soy" is a finished word,
+    /// so it is not "soymilk" or "non-soy" on its own -- but "soy milk" together
+    /// spells USDA's "Soymilk".
+    func testOnlyTheLastWordMayBeUnfinished() async throws {
+        let soy = try await first("soy milk")
+        XCTAssertTrue(soy.hasPrefix("Soymilk"), soy)
+
+        let cream = try await first("cream cheese")
+        XCTAssertTrue(cream.hasPrefix("Cheese, cream"), cream)
+
+        for name in try await names("toast with butter", limit: 10) {
+            XCTAssertFalse(name.hasPrefix("Seeds, sesame butter"), name)
+        }
+    }
+
+    func testPluralsUSDAWritesSingularStillFind() async throws {
+        let cheese = try await first("cheeses")
+        XCTAssertTrue(cheese.hasPrefix("Cheese"), cheese)
+        let veggie = try await first("veggies")
+        XCTAssertTrue(veggie.lowercased().contains("veggie"), veggie)
+        let smoothies = try await database.findFoods("smoothies")
+        XCTAssertGreaterThan(smoothies.foods.count, 3)
+    }
+
+    func testAnAccentDoesNotEmptyTheList() async throws {
+        let pepper = try await first("jalapeño")
+        XCTAssertTrue(pepper.hasPrefix("Peppers, jalapeno"), pepper)
+    }
+
+    /// DENNY'S would win on place and length; only the brand rule puts the
+    /// plain food first. (The cost, accepted: a restaurant dish such as
+    /// "fried chicken" also waits behind plain rows until the place is typed.)
+    func testABrandWaitsEvenWhereItWouldWinOnLength() async throws {
+        let hash = try await first("hash browns")
+        XCTAssertTrue(hash.hasPrefix("Potatoes, hash brown"), hash)
+        let fries = try await first("french fries")
+        XCTAssertTrue(fries.hasPrefix("Potatoes, french fried"), fries)
+    }
+
+    func testABrandTypedAsOneWordIsTheBrand() async throws {
+        let brand = try await first("chickfila")
+        XCTAssertTrue(brand.hasPrefix("CHICK-FIL-A"), brand)
+    }
+
+    /// When some foods have every word, only those are listed.
+    func testFoodsMissingAWordAreLeftOutWhenOthersHaveThemAll() async throws {
+        let found = try await database.findFoods("grilled chicken breast", limit: 10)
+        XCTAssertTrue(found.matchesEveryWord)
+        for name in found.foods.map({ $0.name.lowercased() }) {
+            XCTAssertTrue(name.contains("grilled") && name.contains("chicken") && name.contains("breast"), name)
+        }
+    }
+
     // MARK: Everyday foods
 
     /// The plain staple, not whatever USDA happened to name shortest. Without
@@ -174,7 +271,7 @@ final class FoodSearchTests: XCTestCase {
     /// The list names rows by id. A rebuilt food.db that drops or renumbers
     /// one must fail here, not quietly stop ranking that food first.
     func testEveryEverydayFoodIsInTheDatabase() async throws {
-        for id in FoodRanking.everyday {
+        for id in FoodRanking.everyday.keys {
             let found = try await database.food(id: id)
             XCTAssertNotNil(found, id)
         }
@@ -205,7 +302,8 @@ final class FoodSearchTests: XCTestCase {
     // MARK: The query's words
 
     func testQueryWordsDropAmountsUnitsAndFiller() {
-        XCTAssertEqual(FoodQuery("2 large eggs").words, ["large", "eggs"])
+        XCTAssertEqual(FoodQuery("2 large eggs").words, ["eggs"])
+        XCTAssertEqual(FoodQuery("2 large eggs").sizes, ["large"])
         XCTAssertEqual(FoodQuery("Chicken breast, 6 oz").words, ["chicken", "breast"])
         XCTAssertEqual(FoodQuery("1/2 cup oats with milk").words, ["oats", "milk"])
         XCTAssertEqual(FoodQuery("150g rice").words, ["rice"])
@@ -213,16 +311,29 @@ final class FoodSearchTests: XCTestCase {
         XCTAssertEqual(FoodQuery("McDonald's").words, ["mcdonalds"])
     }
 
-    func testSingularForms() {
-        XCTAssertEqual(FoodQuery.singular("eggs"), "egg")
-        XCTAssertEqual(FoodQuery.singular("apples"), "apple")
-        XCTAssertEqual(FoodQuery.singular("berries"), "berry")
-        XCTAssertEqual(FoodQuery.singular("tomatoes"), "tomato")
-        XCTAssertEqual(FoodQuery.singular("peaches"), "peach")
-        XCTAssertEqual(FoodQuery.singular("glass"), "glass")
-        XCTAssertEqual(FoodQuery.singular("oats"), "oat")
-        XCTAssertEqual(FoodQuery.singular("gas"), "gas")
+    func testAWordMeetsItsOtherForms() {
+        XCTAssertTrue(FoodQuery.forms(of: "eggs").contains("egg"))
+        XCTAssertTrue(FoodQuery.forms(of: "berries").contains("berry"))
+        XCTAssertTrue(FoodQuery.forms(of: "tomatoes").contains("tomato"))
+        XCTAssertTrue(FoodQuery.forms(of: "peaches").contains("peach"))
+        XCTAssertTrue(FoodQuery.forms(of: "cheeses").contains("cheese"))
+        XCTAssertTrue(FoodQuery.forms(of: "veggies").contains("veggie"))
+        XCTAssertEqual(FoodQuery.forms(of: "glass"), ["glass"])
+        XCTAssertEqual(FoodQuery.forms(of: "gas"), ["gas"])
         // Not "fry": that is "Tortillas, ready-to-bake or -fry".
-        XCTAssertEqual(FoodQuery.singular("fries"), "fries")
+        XCTAssertEqual(FoodQuery.forms(of: "fries"), ["fries"])
+    }
+
+    func testAccentsAreFolded() {
+        XCTAssertEqual(FoodQuery("Jalapeño").words, ["jalapeno"])
+    }
+
+    func testAPasteIsCutToAFewWords() {
+        let paste = Array(repeating: "chicken", count: 2_000).joined(separator: " ")
+        XCTAssertLessThanOrEqual(FoodQuery(paste).words.count, 8)
+    }
+
+    func testALonePercentIsNotAWord() {
+        XCTAssertEqual(FoodQuery("chicken %").words, ["chicken"])
     }
 }

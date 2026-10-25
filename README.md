@@ -34,6 +34,14 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.15.0 — food search that finds the food
+
+- `ReferenceDatabase.findFoods(_:limit:)` returns `FoodSearchResults` (`foods`, `matchesEveryWord`): the search to use where a person logs a meal. `searchFoods` is unchanged, because Coach costs a recipe line from its first hit and a new ranking would change a dish's macros.
+- Never answers a food word with nothing. Amounts, units, containers and filler are not words to find ("2 large eggs", "chicken breast 6 oz", "1 cup rice", "glass of milk", "can of coke"); sizes ("medium") help but are never required. When no food has every word, the foods with the most of them come back with `matchesEveryWord` false, so the screen can say they are the closest.
+- The last word may be unfinished ("chick" finds chicken); an earlier word may be short only when no plain food has it whole ("mac and cheese", "chick breast", but "soy" is not "non-soy"). Two typed words may spell one of USDA's ("soy milk" is "Soymilk"). Plurals share forms with singulars both ways (eggs, berries, cheeses, veggies; "fries" is not "fry"), accents fold ("jalapeño"), "oatmeal" also finds oats, "coke" cola and "diet" USDA's "low calorie", a brand typed as one word is the brand ("chickfila"), and a long query keeps its first seven words and its last.
+- Ranking, in order (`FoodRanking`): more of the words; plain foods before brand, babyfood and meatless rows, unless the brand or a word only that product uses was typed ("beef whopper", "bacon mcmuffin"); whole words before word starts; the everyday form of about fifty staples (`FoodRanking.everyday`, USDA ids chosen by hand, each lifted only by what it is called, so "salad" is not olive oil); sizes; the name whose head is the last word typed ("potato" is potatoes before sweet potato, "olives" before olive loaf, "BURGER KING, WHOPPER" a whopper, "Crustaceans, shrimp" and "Alcoholic beverage, distilled, whiskey" past their group words); then LIFT web's rule from `lift/foods.js`, where the words start and the shorter name. "Fast foods" and "Restaurant" rows are generic dishes and are not set aside: "cheeseburger" and "fried chicken" lead with them.
+- Ranks the 7,928 rows in memory against a numbered vocabulary of their word forms, loaded on the first search (about 150 ms, about 9 MB); a search then takes 2–3 ms on a Mac.
+
 ### 1.14.0 — readable sage text
 
 - `Theme.accentSecondaryText` added: light `56664F` (same as `accentSecondary`, 5.38:1 on `background`, 6.02:1 on `surface`), dark `879585` (same hue, lighter: 5.46:1 on `background`, 5.03:1 on `surface`, 4.54:1 on `2C2A27`). Dark `accentSecondary` (`7C8B7A`) is 4.40:1 on `surface`, below AA for text. Under Increase Contrast it is `465341` (7.13:1 / 7.97:1) in light and `A6B0A4` (7.68:1 / 7.07:1) in dark.

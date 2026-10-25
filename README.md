@@ -34,6 +34,14 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.15.0 — food search that finds the food
+
+- `ReferenceDatabase.findFoods(_:limit:)` returns `FoodSearchResults` (`foods`, `matchesEveryWord`): the search to use where a person logs a meal. `searchFoods` is unchanged, because Coach costs a recipe line from its first hit and a new ranking would change a dish's macros.
+- Never answers a food word with nothing. Amounts, units and filler are not words to find ("2 large eggs", "chicken breast 6 oz", "1 cup rice", "oats with milk"). When no food has every word, the foods with the most of them come back, the last word typed first, with `matchesEveryWord` false so the screen can say they are the closest.
+- Ranking, in order (`FoodRanking`): more of the words; the last word typed; plain foods before brand, restaurant, babyfood and meatless rows unless the brand was typed; the everyday form of about fifty staples (`FoodRanking.everyday`, USDA ids chosen by hand); whole words before word starts ("egg" is not "Eggnog", "apple" is not "APPLEBEE'S"); where the last word sits; then LIFT web's rule from `lift/foods.js`, where the words start and the shorter name.
+- Plurals meet their singular (eggs, berries, tomatoes, peaches); "oatmeal" also finds oats.
+- Ranks the 7,928 rows in memory, loaded on the first search; a search takes about a millisecond.
+
 ### 1.14.0 — readable sage text
 
 - `Theme.accentSecondaryText` added: light `56664F` (same as `accentSecondary`, 5.38:1 on `background`, 6.02:1 on `surface`), dark `879585` (same hue, lighter: 5.46:1 on `background`, 5.03:1 on `surface`, 4.54:1 on `2C2A27`). Dark `accentSecondary` (`7C8B7A`) is 4.40:1 on `surface`, below AA for text. Under Increase Contrast it is `465341` (7.13:1 / 7.97:1) in light and `A6B0A4` (7.68:1 / 7.07:1) in dark.

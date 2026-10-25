@@ -276,6 +276,36 @@ final class FoodSearchTests: XCTestCase {
         XCTAssertLessThanOrEqual(words.count, FoodQuery.mostWords)
     }
 
+    // MARK: Third review
+
+    /// The one probe that logged wrong numbers: regular cola, about 140 kcal
+    /// a can, for a diet one. USDA writes diet as "low calorie".
+    func testADietDrinkIsTheLowCalorieOne() async throws {
+        let found = try await database.findFoods("diet coke", limit: 1)
+        let drink = try XCTUnwrap(found.foods.first)
+        XCTAssertLessThan(drink.caloriesPer100g, 5, drink.name)
+        XCTAssertTrue(drink.name.lowercased().contains("cola"), drink.name)
+    }
+
+    /// Peanut butter is called butter; peanuts are peanuts.
+    func testPeanutsAreNotPeanutButter() async throws {
+        let nuts = try await first("peanuts")
+        XCTAssertTrue(nuts.hasPrefix("Peanuts,"), nuts)
+        let spread = try await first("peanut butter")
+        XCTAssertTrue(spread.hasPrefix("Peanut butter"), spread)
+    }
+
+    /// USDA leads some rows with a group ("Crustaceans", "Mollusks",
+    /// "Alcoholic beverage, distilled"); the food is the part after it.
+    func testAGroupLeadIsNotTheFood() async throws {
+        let shrimp = try await first("shrimp")
+        XCTAssertTrue(shrimp.hasPrefix("Crustaceans, shrimp"), shrimp)
+        let oysters = try await first("oysters")
+        XCTAssertTrue(oysters.hasPrefix("Mollusks, oyster"), oysters)
+        let whiskey = try await first("whiskey")
+        XCTAssertTrue(whiskey.hasPrefix("Alcoholic beverage, distilled"), whiskey)
+    }
+
     // MARK: Everyday foods
 
     /// The plain staple, not whatever USDA happened to name shortest. Without

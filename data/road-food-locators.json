@@ -184,6 +184,94 @@
       "method": "manual",
       "note": "QuikTrip files its PDFs under uploads/YYYY/MM/, so a replacement would appear at a new address and this check would not see it. Each quarter, open a quiktrip.com product page and confirm it still links this PDF.",
       "why": "the PDF's extracted text interleaves rows and columns, so items were read by position on the page; the check only watches the document's date"
+    },
+    "arbys": {
+      "method": "pdf",
+      "columns": ["_", "kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "Each row label runs on into its allergen statement, and the fried rows wrap that statement onto a second line, so the locators carry it as PDFKit extracts it. The sliders and the milk appear twice (Value Menu and Kids Menu, Kids Menu and Miscellaneous Drinks) with identical figures; the first match is read.",
+      "items": {
+        "arbys-classic-roast-beef": { "row": "Classic Roast Beef Contains: Soy, Wheat, Sesame **Milk" },
+        "arbys-double-roast-beef": { "row": "Double Roast Beef Contains: Soy, Wheat, Sesame **Milk" },
+        "arbys-half-pound-roast-beef": { "row": "Half Pound Roast Beef Contains: Soy, Wheat, Sesame **Milk" },
+        "arbys-classic-french-dip-swiss-au-jus": { "row": "Classic French Dip & Swiss/Au Jus Contains: Milk, Soy, Wheat" },
+        "arbys-ham-swiss-melt": { "row": "Ham & Swiss Melt Contains: Egg, Milk, Wheat, Sesame † Fish (where available)" },
+        "arbys-chicken-tenders-3": { "row": "Chicken Tenders (3) Contains: Wheat † Fish (where available)" },
+        "arbys-chicken-tenders-5": { "row": "Chicken Tenders (5) Contains: Wheat † Fish (where available)" },
+        "arbys-roast-beef-slider": { "row": "Roast Beef Slider Contains: Milk, Soy, Wheat/May contain Sesame" },
+        "arbys-ham-slider": { "row": "Ham Slider Contains: Milk, Soy, Wheat/May contain Sesame" },
+        "arbys-shamrock-farms-lowfat-white-milk": { "row": "Shamrock Farms® Lowfat White Milk Contains: Milk" }
+      }
+    },
+    "loves": {
+      "method": "pdf",
+      "columns": ["_", "kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "PDFKit puts each food row on one line with its allergen statement and serving size between the name and the numbers, so each row carries both as extracted. The first column read is Servings Per Container, kept so a change from 1 to 2 servings is caught. Love's names the file after a date (fda-master8242026), so a replacement would arrive at a new address: each quarter, confirm loves.com/store-offerings/food-and-beverages still links this PDF.",
+      "items": {
+        "loves-hot-and-spicy-chicken-drumsticks": { "row": "Hot & Spicy Chicken Drumsticks Contains: Wheat 10oz (291g)" },
+        "loves-chicken-caesar-salad": { "row": "Chicken Caesar Salad Contains: Milk, Soy, Wheat 9.7oz (274g)" },
+        "loves-southwest-chicken-salad": { "row": "Southwest Chicken Salad Contains: Milk, Soy 12.4oz (352g)" },
+        "loves-chef-salad": { "row": "Chef Salad Contains: Egg, Milk 9.2oz (261g)" },
+        "loves-ham-egg-and-cheese-omelet-bowl": { "row": "Ham Egg & Cheese Omelet Bowl Contains: Egg, Milk 6.5 oz (184g)" },
+        "loves-hard-boiled-eggs": { "row": "Hard-Boiled Eggs Contains: Egg 3.14oz (89g)" },
+        "loves-chicken-taco": { "row": "Chicken Taco Contains: Milk, Soy, Wheat 4.6oz (130g)" },
+        "loves-club-wrap": { "row": "Club Wrap Contains: Egg, Milk, Soy, Wheat 5.7oz (162g)" },
+        "loves-spicy-chicken-sandwich": { "row": "Spicy Chicken Sandwich Contains: Milk, Soy, Wheat 6.5oz (184g)" }
+      }
+    },
+    "pilotflyingj": {
+      "method": "pdf",
+      "columns": ["kcal", "_", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "The source is the link pilotcompany.com/food-and-drink shows (\"/file/nutrition-facts\"); it answers with the PDF itself (Content-Disposition: Item-Nutrition-Food-Beverage-October-26.pdf), so the same address will serve whatever Pilot publishes next.",
+      "items": {
+        "pilotflyingj-roasted-half-chicken": { "row": "Roasted Half Chicken" },
+        "pilotflyingj-chicken-bacon-ranch-wrap": { "row": "Chicken Bacon Ranch Wrap" },
+        "pilotflyingj-smoked-turkey-and-cheddar-sandwich": { "row": "Smoked Turkey & Cheddar Sandwich" },
+        "pilotflyingj-classic-ham-and-cheddar-sandwich": { "row": "Classic Ham & Cheddar Sandwich" },
+        "pilotflyingj-chef-salad": { "row": "Chef Salad" },
+        "pilotflyingj-chicken-tender-salad": { "row": "Chicken Tender Salad" },
+        "pilotflyingj-boiled-egg-cup": { "row": "Boiled Egg Cup" },
+        "pilotflyingj-spicy-chicken-sandwich": { "row": "Spicy Chicken Sandwich" },
+        "pilotflyingj-classic-steak-burger": { "row": "Classic Steak Burger" }
+      }
+    },
+    "culvers": {
+      "method": "nutritionix",
+      "embed": "r.nutritionix.com/culvers/landing",
+      "gridUrl": "https://www.nutritionix.com/culvers/menu/premium",
+      "columns": ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "culvers.com/nutrition-and-allergen-guide embeds the newer Nutritionix loader (an iframe of r.nutritionix.com/culvers/landing, whose app reads nix-vue-inm.s3.amazonaws.com/restaurant/culvers/data/menu-latest.json.gz); the server-rendered grid is the same brand's menu on Nutritionix and agrees with that data file for every item. The grid repeats an item in every section it belongs to (ButterBurger and tenders are also under Kids' Meals); the repeats agree.",
+      "items": {
+        "culvers-grilled-chicken-sandwich": { "row": "Grilled Chicken Sandwich" },
+        "culvers-chicken-cashew-salad": { "row": "Chicken Cashew Salad" },
+        "culvers-cranberry-bacon-bleu-salad": { "row": "Cranberry Bacon Bleu Salad" },
+        "culvers-garden-fresco-salad": { "row": "Garden Fresco Salad" },
+        "culvers-butterburger-single": { "row": "ButterBurger®, Single" },
+        "culvers-butterburger-double": { "row": "ButterBurger®, Double" },
+        "culvers-beef-pot-roast-sandwich": { "row": "Beef Pot Roast" },
+        "culvers-georges-chili-medium": { "row": "George's® Chili, Medium" },
+        "culvers-original-chicken-tenders-2-piece": { "row": "Original Chicken Tenders, 2 Piece" },
+        "culvers-white-milk": { "row": "White Milk" }
+      }
+    },
+    "dunkin": {
+      "method": "pdf",
+      "columns": ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "_", "proteinG", "_", "_", "_", "_"],
+      "note": "PDFKit splits several two-line labels around their numbers, so three rows are matched on the part of the label that sits directly before the figures (\"Bacon, Egg and Cheese on English\", \"Turkey Sausage Sandwich on\", \"Bacon, Egg and Cheese Wake-Up\"); the rest of each label is extracted elsewhere. Each was confirmed against the rendered page. The latte row carries its serving column (\"Large\") so the label is followed by a figure. Pages 1-13 are the guide's Limited Time Products section and no item is read from them. The PDF sits on Dunkin's Contentful asset host and a replacement would appear at a new address: confirm dunkindonuts.com/nutrition/ still links it.",
+      "items": {
+        "dunkin-egg-and-cheese-on-english-muffin": { "row": "Egg and Cheese on English Muffin" },
+        "dunkin-bacon-egg-and-cheese-on-english-muffin": { "row": "Bacon, Egg and Cheese on English" },
+        "dunkin-turkey-sausage-sandwich-on-english-muffin": { "row": "Turkey Sausage Sandwich on" },
+        "dunkin-sourdough-breakfast-sandwich": { "row": "Sourdough Breakfast Sandwich" },
+        "dunkin-turkey-sausage-wake-up-wrap": { "row": "Turkey Sausage Wake Up Wrap" },
+        "dunkin-bacon-egg-and-cheese-wake-up-wrap": { "row": "Bacon, Egg and Cheese Wake-Up" },
+        "dunkin-egg-and-cheese-wake-up-wrap": { "row": "Egg and Cheese Wake-Up Wrap" },
+        "dunkin-hot-latte-with-skim-milk-large": { "row": "Hot Latte with Skim Milk - Large Large" }
+      }
+    },
+    "jackinthebox": {
+      "method": "manual",
+      "note": "The PDF is the nutritionUrl in jackinthebox.com's own page data, served from its Sanity CMS asset host under a content hash, so a replacement appears at a new address: each quarter, confirm jackinthebox.com still links this file. The chart says \"effective as of November 2026\", a month after it was read, so no publishedOn is recorded.",
+      "why": "the PDF is one 18 x 24 in poster whose extracted text separates every label from its figures (the numbers come out in blocks with no names), so items were read by position from the rendered page; the check can only watch the document's bytes"
     }
   }
 }

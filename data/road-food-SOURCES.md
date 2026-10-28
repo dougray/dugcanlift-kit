@@ -616,6 +616,80 @@ entries, locators and notes are kept outside the repo until Doug decides.
   links that copy today, and a search summary claimed the www copy differs.
   **Doug:** is the chain's own second host enough, as Burger King's RBI host was?
 
+## Allergens (read 2026-10-28)
+
+An item's `allergens` is what the chain's own allergen chart says it
+**contains**, in the order milk, egg, fish, shellfish, tree-nuts, peanuts,
+wheat, soy, sesame. "May contain", shared-fryer and cross-contact notes are not
+recorded (several charts print them; the apps say cross-contact is not
+covered). `[]` is "the chart lists the item and marks none of what it covers";
+no key is "not stated". A chain's `allergensCovered` is set only where the chart
+says what it covers — a column per allergen, or a statement that it marks the
+nine — so an app can say "shellfish not stated" rather than imply "no
+shellfish". Where a chart lists what items contain but never says what it
+covers, `allergensCovered` is absent: its lists can hide an item from someone
+avoiding an allergen, and never clear one. Same ground rules as the nutrition:
+the chain's own document, one plain request, nothing worked around; tick tables
+were read by eye from page renders.
+
+| Chain | Allergen source | Covers | Items stated |
+|---|---|---|---|
+| Wendy's | `https://api.app.prd.wendys.digital/web-client-gateway/NutritionServices/rest/nutritionalData` | all nine | 7 of 7 |
+| Sonic | `https://assets.ctfassets.net/whnlxz6bna9d/3NjTwdHq4GWH4nsiA9MzUz/d5ba77ec9d7733a1dc6f2577771133fb/61667-2_FEE_0926_ALLERGEN_SEPTEMBER_FA4_rg_WCAG.pdf` | all nine | 7 of 7 |
+| Burger King | none read | — | 0 of 9 |
+| Whataburger | none read | — | 0 of 9 |
+| Culver's | `https://www.culvers.com/nutrition-and-allergen-guide` | all nine | 10 of 10 |
+| Jack in the Box | `https://cdn.sanity.io/files/j2jr32rk/content-production/5cbdb27f7f3cd5978732e01d566d4e11e064f0e4.pdf` | all nine | 10 of 10 |
+| Chick-fil-A | `https://www.chick-fil-a.com/nutrition-allergens` | milk, egg, fish, tree-nuts, peanuts, wheat, soy, sesame | 10 of 10 |
+| Popeyes | `https://plk-use1-prod.sites.rbictg.com/nutrition/Popeyes_US_Allergen.pdf` | all nine | 6 of 6 |
+| Taco Bell | none read | — | 0 of 10 |
+| Chipotle | none read | — | 0 of 9 |
+| Subway | `https://media.subway.com/dam/urn:aaid:aem:359a9f3d-2719-453b-9395-030f54968cbe/original/as/us-allergens-en.pdf` | all nine | 2 of 8 |
+| Arby's | `https://assets.ctfassets.net/30q5w5l98nbx/6CplhZeKpu7X9ts2pSE3Lg/624b24407875e1dbdf6f07f0da28897e/Arbys_Nutritional_and_Allergen_NOV_2026.pdf` | all nine | 10 of 10 |
+| Starbucks | `https://www.starbucks.com/apiproxy/v1/ordering/` | **not stated** (lists can hide, never clear) | 6 of 8 |
+| Panera Bread | `https://www.panerabread.com/content/dam/panerabread/documents/c8-26-allergen-guide.pdf` | milk, egg, tree-nuts, peanuts, wheat, soy, sesame | 7 of 8 |
+| Dunkin' | `https://assets.ctfassets.net/ubkcphxhphh0/4M2wXyC5B3yPyD5DlI4MHA/84696105765eb3f1b77160de9f70da36/DD_W7_allergy_ingredient_guide.pdf` | **not stated** (lists can hide, never clear) | 8 of 8 |
+| Sheetz | none read | — | 0 of 9 |
+| QuikTrip | `https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf` | **not stated** (lists can hide, never clear) | 8 of 8 |
+| Love's | `https://edge.sitecorecloud.io/lovestravela9dd-loves2161-lovesprod042a-cf5a/media/images/store-promotions/fda-list/loves-fresh-food-fda-master8242026.pdf` | **not stated** (lists can hide, never clear) | 9 of 9 |
+| Pilot Flying J | `https://pilotcompany.com/file/nutrition-facts` | **not stated** (lists can hide, never clear) | 8 of 9 |
+
+Why some items or chains are not stated:
+
+- **Burger King**: no allergen statement in the nutrition PDF; bk.com loads its
+  allergens from a CMS whose project id only a runtime flag service names. Not
+  pursued.
+- **Whataburger**: the 2021 PDF has none; the site builds allergens from the keyed
+  ordering API, already ruled out.
+- **Chipotle**: its allergen chart loads from an API that answered 401 without a
+  subscription key. The key is printed in a `<meta>` tag on the allergen page
+  itself. **Doug:** is one keyed request acceptable?
+- **Taco Bell**: its allergen widget lists only "free of X" filters behind a
+  terms checkbox; a "contains" list would have to be inferred. Not done.
+- **Sheetz**: its embedded calculator has allergens switched off.
+- **Subway**: the chart lists ingredients, not finished subs; summing components
+  is ruled out. Grilled Chicken is `["soy"]`; Rotisserie-Style Chicken is `[]`,
+  its only mark being the FDA-exempt highly refined soy oil.
+- **Starbucks**: two items' allergen fields are "N/A" or empty.
+- **Panera**: one item, the Chicken Caesar Wrap, is marked in a combined
+  Fish/Shellfish column, so it is not stated; Panera covers neither separately.
+- **Pilot Flying J**: the Boiled Egg Cup's cell is an ingredient, not a
+  "Contains" statement.
+
+Calls made, for Doug to overturn:
+
+- **Regional marks are recorded as contains.** Arby's roast beef carries milk
+  for buttered buns in two markets; Jack in the Box's Jumbo Jack and Hamburger
+  carry sesame "in some regions". Over-warning someone avoiding milk or sesame is
+  the safer error.
+- **Popeyes' allergen PDF** was found the way its nutrition PDF was: in the
+  site's own CMS record for "Nutrition & Allergen Information".
+- **Coverage "not stated"** for Love's, Pilot Flying J, QuikTrip, Starbucks and
+  Dunkin': none says what its allergen statements cover.
+- **Chick-fil-A** has no shellfish column, so its three `[]` items read
+  "shellfish not stated" for someone avoiding shellfish.
+- **Wendy's and Culver's** carry the same source questions their nutrition does.
+
 ## Snacks (22 products, 9 categories)
 
 Source: USDA FoodData Central, Branded Foods (public domain, CC0), searched

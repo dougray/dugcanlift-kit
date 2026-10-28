@@ -46,6 +46,16 @@ no date, Sonic's says only "SUMMER 2026" — a season is not a month, and `2026`
 alone would be inventing the rest — and Jack in the Box's says "effective as of
 November 2026", a month after it was read, which no `publishedOn` may be. `road-food-SOURCES.md` records what each document does say.
 
+## Allergens
+
+`allergenSource` (chain), `allergensCovered` (chain, optional) and `allergens`
+(item, optional) record what the chain's own allergen chart says an item
+**contains**. No key means not stated; `[]` means listed and none of what the
+chart covers; an absent `allergensCovered` means the chart never says what it
+covers, so an app must not clear an item of anything. Old app builds ignore all
+three keys. The rules and the per-chain sources are in `road-food-SOURCES.md`
+"Allergens".
+
 ## Validate
 
 ```sh

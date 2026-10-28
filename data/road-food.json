@@ -880,8 +880,8 @@
       "id": "popeyes",
       "name": "Popeyes",
       "kind": "chicken",
-      "publishedOn": "2026-08",
-      "checkedOn": "2026-09-20",
+      "publishedOn": "2026-09",
+      "checkedOn": "2026-10-28",
       "source": "https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf",
       "items": [
         {
@@ -968,8 +968,8 @@
       "id": "tacobell",
       "name": "Taco Bell",
       "kind": "mexican",
-      "publishedOn": "2026-09-24",
-      "checkedOn": "2026-09-24",
+      "publishedOn": "2026-10-26",
+      "checkedOn": "2026-10-28",
       "source": "https://www.tacobell.com/nutrition/info",
       "items": [
         {

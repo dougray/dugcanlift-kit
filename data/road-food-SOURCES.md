@@ -40,8 +40,8 @@ states about itself, blank when it states none. See "Published on" in
 | Burger King | burgers | 9 | `bk-use1-prod.sites.rbictg.com/nutrition/nutrition.pdf` (RBI's production host for bk.com, the same host Popeyes' PDF sits on) | 2026-09-23 | 2022-11 | **"BURGER KING® USA Nutrition Information — NOVEMBER 2022"**, on every page |
 | Whataburger | burgers | 9 | https://wbimageserver.whataburger.com/Nutrition.pdf | 2026-09-23 | 2021-03-29 | **"Nutritional information as of March 29, 2021"** (the file itself was created 2021-02-02; the printed statement is later and wins) |
 | Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-10-28 | — | none shown |
-| Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-09-20 | 2026-08 | "Popeyes® USA Nutrition Guide — August 2026", and "current as of August 2026" in the footnote (the file properties still say "Nutrition FEBRUARY 2023", a stale template title) |
-| Taco Bell | mexican | 10 | The Nutritionix calculator embedded at https://www.tacobell.com/nutrition/info, whose menu grid is `www.nutritionix.com/taco-bell/menu/premium` | 2026-09-24 | 2026-09-24 | **"Last Updated: 09/24/2026"** above and below the grid |
+| Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-10-28 | 2026-09 | "Popeyes® USA Nutrition Guide — September 2026", "Popeyes Nutrition Guide September 2026" in each page footer, and "current as of September 2026" in the footnote (it said August 2026 when first read on 2026-09-20; the file properties still say "Nutrition FEBRUARY 2023", a stale template title) |
+| Taco Bell | mexican | 10 | The Nutritionix calculator embedded at https://www.tacobell.com/nutrition/info, whose menu grid is `www.nutritionix.com/taco-bell/menu/premium` | 2026-10-28 | 2026-10-26 | **"Last Updated: 10/26/2026"** above and below the grid (it said 09/24/2026 when first read on 2026-09-24) |
 | Chipotle | mexican | 9 | https://www.chipotle.com/content/dam/chipotle/menu/nutrition/US-Nutrition-Facts-Paper-Menu-3-2025.pdf | 2026-09-23 | 2024-10 | **footer code `OCT-2024-US-CK`** |
 | Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | 2026-01 | "U.S. NUTRITION INFORMATION — January 2026" |
 | Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | — | none shown |
@@ -104,6 +104,16 @@ published figure.
   - "Tender - Classic" (1 piece) is the kids'-meal row.
   - Blackened tenders are the standout (3 pc: 170 kcal, 28 g protein), but
     their sodium is high.
+  - **Re-read 2026-10-28** after the refresh check reported the guide no
+    longer states August 2026. One plain request for the PDF (200, 271,964
+    bytes, Last-Modified 2026-10-01, three pages), text extracted with
+    PDFKit. It now reads "Popeyes® USA Nutrition Guide — September 2026" under
+    the title, "Popeyes Nutrition Guide September 2026" in each page footer,
+    and "current as of September 2026" in the footnote, so `publishedOn` is
+    `2026-09`. Every figure of all six items reads exactly as bundled. The
+    file properties still say "Nutrition FEBRUARY 2023" (created 2026-09-21);
+    neither is the document speaking. The address is unchanged, so the
+    republished guide replaced the old one in place.
 - **Burger King.** The PDF is served from RBI's production site host, the same one
   Popeyes' PDF sits on, and it is the only Burger King nutrition document that
   answers a plain request: bk.com/nutrition-explorer and every bk.com PDF path
@@ -202,6 +212,17 @@ published figure.
     and Taco Bell's simply moved that day. If a later check reports that the
     document no longer states 2026-09-24, that is the widget being updated
     again, not a fault. **Doug: worth a second look.**
+  - **Re-read 2026-10-28**, and that is what happened: the check reported the
+    grid no longer states 09/24/2026. One plain request each for
+    tacobell.com/nutrition/info (200, 39,510 bytes) and the grid (200). The
+    page's own data still names an `IFrameModule` of type "NutritionX" whose
+    url is
+    `https://www.nutritionix.com/taco-bell/menu/premium` (and the `m.`
+    mobile form), so the embed stands; the page itself prints no date. The
+    grid prints **"Last Updated: 10/26/2026"** above and below, so
+    `publishedOn` is `2026-10-26`. Every figure of all ten items reads
+    exactly as bundled, each item once, in the same sections (New, Tacos,
+    Specialties, Burritos, Cantina Chicken Menu).
   - **There are no Power Menu Bowls.** They are not on the chart at all. The
     Cantina Chicken Bowl is the bowl the current menu has, and it is in the
     file.

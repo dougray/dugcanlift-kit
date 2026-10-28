@@ -39,14 +39,14 @@ states about itself, blank when it states none. See "Published on" in
 | Sonic | burgers | 7 | Nutrition brochure PDF linked from sonicdrivein.com/nutrition-allergen/ (Contentful asset host) | 2026-09-20 | — | "SUMMER 2026" — a season, not a month; the file is named September and its properties say September 2026, neither of which is the document speaking |
 | Burger King | burgers | 9 | `bk-use1-prod.sites.rbictg.com/nutrition/nutrition.pdf` (RBI's production host for bk.com, the same host Popeyes' PDF sits on) | 2026-09-23 | 2022-11 | **"BURGER KING® USA Nutrition Information — NOVEMBER 2022"**, on every page |
 | Whataburger | burgers | 9 | https://wbimageserver.whataburger.com/Nutrition.pdf | 2026-09-23 | 2021-03-29 | **"Nutritional information as of March 29, 2021"** (the file itself was created 2021-02-02; the printed statement is later and wins) |
-| Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-09-20 | — | none shown |
+| Chick-fil-A | chicken | 10 | https://www.chick-fil-a.com/nutrition-allergens (JSON embedded in the page) | 2026-10-28 | — | none shown |
 | Popeyes | chicken | 6 | https://plk-use1-prod.sites.rbictg.com/nutrition/PLK_Nutrition.pdf (linked from popeyes.com) | 2026-09-20 | 2026-08 | "Popeyes® USA Nutrition Guide — August 2026", and "current as of August 2026" in the footnote (the file properties still say "Nutrition FEBRUARY 2023", a stale template title) |
 | Taco Bell | mexican | 10 | The Nutritionix calculator embedded at https://www.tacobell.com/nutrition/info, whose menu grid is `www.nutritionix.com/taco-bell/menu/premium` | 2026-09-24 | 2026-09-24 | **"Last Updated: 09/24/2026"** above and below the grid |
 | Chipotle | mexican | 9 | https://www.chipotle.com/content/dam/chipotle/menu/nutrition/US-Nutrition-Facts-Paper-Menu-3-2025.pdf | 2026-09-23 | 2024-10 | **footer code `OCT-2024-US-CK`** |
 | Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | 2026-01 | "U.S. NUTRITION INFORMATION — January 2026" |
 | Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | — | none shown |
 | Panera Bread | coffee | 8 | https://www.panerabread.com/content/dam/panerabread/documents/c8-26-nutrition-guide.pdf | 2026-09-20 | 2026-09-02 | "Effective: 9/2/2026 Edition: 1", on every page |
-| Sheetz | gas-station-kitchen | 9 | The Nutritionix calculator embedded at https://www.sheetz.com/nutrition, whose menu grid is `www.nutritionix.com/sheetz/menu/premium` | 2026-09-24 | 2026-09-23 | **"Last Updated: 09/23/2026"** on the calculator and on the grid |
+| Sheetz | gas-station-kitchen | 9 | The Nutritionix calculator embedded at https://www.sheetz.com/nutrition, whose menu grid is `www.nutritionix.com/sheetz/menu/premium` | 2026-10-28 | 2026-10-23 | **"Last Updated: 10/23/2026"** on the calculator and on the grid (it said 09/23/2026 when first read on 2026-09-24) |
 | QuikTrip | gas-station-kitchen | 8 | https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf (linked from quiktrip.com product pages) | 2026-09-20 | — | none printed anywhere in the document; its file properties say 2025-09-12 and its URL path says 2025/09, neither of which is the document speaking |
 | Arby's | sandwiches | 10 | `Arbys_Nutritional_and_Allergen_NOV_2026.pdf` on assets.ctfassets.net (Arby's Contentful space), linked from https://www.arbys.com/nutrition/ | 2026-10-28 | 2026-10 | **"This information is effective as of October 2026."** in the page-10 footnote (the file name says NOV_2026 and the server's Last-Modified is 2026-10-20; neither is the document speaking) |
 | Love's | gas-station-kitchen | 9 | `loves-fresh-food-fda-master8242026.pdf` on Love's Sitecore asset host (`edge.sitecorecloud.io/lovestravela9dd-loves2161-lovesprod042a-cf5a/...`), the "View a list of allergens and nutrition information" link on https://www.loves.com/store-offerings/food-and-beverages | 2026-10-28 | — | none printed anywhere: the title is just "LOVE'S NUTRITIONAL INFORMATION". The file name says 8242026 and the server's Last-Modified is 2026-08-24, neither of which is the document speaking |
@@ -86,8 +86,17 @@ published figure.
 - **Chick-fil-A.** The table is embedded in the page as JSON, and the values
   were spot-checked against the page's own screen-reader text.
   - Grilled Chicken Club is the Colby Jack row (the standard cheese).
-  - Chicken Tortilla Soup lists 17 g fibre on 265 g. That looks high, but it
+  - Chicken Tortilla Soup lists 18 g fibre on 265 g. That looks high, but it
     is the published figure.
+  - **Re-read 2026-10-28** after the refresh check reported the soup had
+    moved. One plain request for the page (200); the soup's row in the
+    embedded JSON, and its screen-reader text, now read 350 kcal, 25 g
+    protein, 11 g fat, 39 g carbohydrate, 18 g fibre, 1115 mg sodium (was 280,
+    24, 7, 31, 17, 1060). Saturated fat (2.5 g) and sugar (4 g) are unchanged,
+    and so is the serving: still "265g", so the serving text stands. 4/4/9
+    gives 355 against 350. The same weight of soup carrying 70 kcal more reads
+    as a recipe change, not a new size; the page does not say. The other nine
+    items were re-read from the same response and every figure is as bundled.
   - 1% Milk is the published 213 g carton.
 - **Popeyes.** popeyes.com is a JS shell. The PDF link was found in the site's
   own CMS page record for "Nutrition & Allergen Information", which is the
@@ -231,6 +240,29 @@ published figure.
     build-your-own starting points, and none of them is in the file under a
     sandwich's name. The one component that is in the file, Grilled Chicken
     Breast Filet, says so in its serving text.
+  - **Re-read 2026-10-28** after the refresh check reported the grid had
+    been republished. One plain request each for sheetz.com/nutrition (200,
+    9.4 MB; it still embeds `nutritionix.com/sheetz/nutrition-calculator/premium`
+    in its iframes), the grid (200) and the calculator (200). The grid and the
+    calculator both print **"Last Updated: 10/23/2026"**, so `publishedOn` is
+    `2026-10-23`. Eight of the nine items read exactly as bundled.
+  - **"Skinny Grilled Chicken - Half" is now "Premium Chicken - Half".** No
+    row of the old name is left anywhere in the grid or the calculator. A row
+    named "Premium Chicken - Half" sits in the same sections a half sub sits
+    in (MTO, Eat Shmart, and Subz, Sandwiches & Wrapz), and every figure the
+    file carries is identical to the old row: 510 kcal, 38 g protein, 17 g fat
+    (3 g saturated), 52 g carbohydrate, 5 g fibre, 7 g sugar, 1,740 mg sodium.
+    Eight matching figures is the same sandwich, so this was treated as a
+    rename: the id `sheetz-skinny-grilled-chicken-half` is kept, because item
+    ids are what coaches' road picks travel on, and only the name and the
+    locator row changed. The id now names the old wording; it is a key, not
+    a label. The same republish brought "Premium Steak" and "Premium Chicken
+    Caesar Salad" in beside the Steakhouse Cutz rows, which looks like a line
+    renamed "Premium". What could not be checked: no copy of the September
+    grid was kept, so whether a "Premium Chicken - Half" row already stood
+    beside the Skinny one then is not known. **Doug: if you would rather a
+    renamed item take a new id, say so; the old one would then be dropped
+    and skipped silently by every client.**
   - **"Catina Bowl" is spelled that way on the chart.** It looks like Sheetz's
     typo for Cantina. The name is what the source publishes. **Doug: say the
     word and it is spelled Cantina, at the cost of no longer matching.**

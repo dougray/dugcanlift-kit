@@ -162,3 +162,44 @@ test("the shipped checksum is the one the apps pin, and it is current", () => {
   assert.match(sum, /^[0-9a-f]{64}$/, "one bare sha256 and nothing else");
   assert.equal(sum, createHash("sha256").update(readFileSync(join(HERE, "road-food.json"))).digest("hex"));
 });
+
+// Allergens: what the chain's own chart says an item contains.
+const withAllergens = (item, chain = {}) => bundle({
+  allergenSource: "https://example.com/allergens.pdf",
+  allergensCovered: ["milk", "egg", "wheat", "soy"],
+  items: [{ id: "achain-burger", name: "Burger", serving: "1 sandwich", kcal: 300, proteinG: 20, fatG: 10, carbsG: 30, ...item }],
+  ...chain,
+});
+
+test("allergens are optional, and a chain with them passes", () => {
+  assert.equal(run(withAllergens({ allergens: ["milk", "wheat"] })).code, 0);
+  // [] is "listed, none of the ones it covers"; no key is "not stated".
+  assert.equal(run(withAllergens({ allergens: [] })).code, 0);
+  assert.equal(run(withAllergens({})).code, 0);
+});
+
+test("an item's allergens need the chain's source and coverage", () => {
+  const r = run(bundle({ items: [{ id: "achain-burger", name: "Burger", serving: "1 sandwich",
+    kcal: 300, proteinG: 20, fatG: 10, carbsG: 30, allergens: ["milk"] }] }));
+  assert.equal(r.code, 1);
+  assert.match(r.out, /allergens without the chain's allergenSource/);
+});
+
+test("allergens are the nine known strings, in order, once each, and covered", () => {
+  for (const [bad, message] of [
+    [["dairy"], /unknown allergen "dairy"/],
+    [["wheat", "milk"], /not in the order/],
+    [["milk", "milk"], /repeats an allergen/],
+    [["sesame"], /"sesame" is not in the chain's allergensCovered/],
+    ["milk", /allergens must be an array/],
+  ]) {
+    const r = run(withAllergens({ allergens: bad }));
+    assert.equal(r.code, 1, JSON.stringify(bad));
+    assert.match(r.out, message);
+  }
+  assert.equal(run(withAllergens({}, { allergensCovered: [] })).code, 1);
+  // A chart that never says what it covers: lists are allowed, coverage is not claimed.
+  assert.equal(run(withAllergens({ allergens: ["sesame"] }, { allergensCovered: undefined })).code, 0);
+  assert.equal(run(bundle({ allergensCovered: ["milk"] })).code, 1);
+  assert.equal(run(withAllergens({}, { allergenSource: "http://insecure" })).code, 1);
+});

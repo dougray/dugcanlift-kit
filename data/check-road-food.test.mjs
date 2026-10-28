@@ -324,6 +324,8 @@ test("every way a document plausibly prints its own date is looked for", () => {
   assert.equal(statesPublished("©2021 Whatabrands LLC Nutritional information as of March 29, 2021", "2021-03-29"), true);
   assert.equal(statesPublished("OCT-2024-US-CK", "2024-10"), true);
   assert.equal(statesPublished("Effective: 9/2/2026 Edition: 1", "2026-09-02"), true);
+  assert.equal(statesPublished("The information below was last updated on 09-21-2026.", "2026-09-21"), true);
+  assert.equal(statesPublished("last updated on 09-21-2026", "2026-09-22"), false);
   // A line break inside the statement, which PDF text puts there freely.
   assert.equal(statesPublished("U.S. NUTRITION INFORMATION\nJanuary\n 2026", "2026-01"), true);
   // A month-only record is not satisfied by some other month of the same year.

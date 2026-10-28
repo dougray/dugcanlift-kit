@@ -394,7 +394,9 @@ export function dateStatements(publishedOn) {
     const dn = Number(d);
     out.push(publishedOn, `${full} ${dn}, ${y}`, `${abbr} ${dn}, ${y}`, `${full} ${dn} ${y}`,
       `${dn} ${full} ${y}`, `${dn} ${abbr} ${y}`,
-      `${Number(m)}/${dn}/${y}`, `${Number(m)}/${d}/${y}`, `${m}/${dn}/${y}`, `${m}/${d}/${y}`);
+      `${Number(m)}/${dn}/${y}`, `${Number(m)}/${d}/${y}`, `${m}/${dn}/${y}`, `${m}/${d}/${y}`,
+      // Dunkin' writes "last updated on 09-21-2026", month first with dashes.
+      `${m}-${d}-${y}`, `${Number(m)}-${dn}-${y}`);
   }
   return out;
 }

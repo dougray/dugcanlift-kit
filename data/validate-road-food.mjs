@@ -32,8 +32,19 @@ const warn = (where, msg) => warnings.push(`${where}: ${msg}`);
 
 const NUMERIC = ["kcal", "proteinG", "fatG", "carbsG", "fiberG", "saturatedFatG", "sugarG", "sodiumMg"];
 const REQUIRED_NUMERIC = ["kcal", "proteinG", "fatG", "carbsG"];
-const ITEM_KEYS = new Set(["id", "name", "serving", ...NUMERIC, "modification"]);
-const CHAIN_KEYS = new Set(["id", "name", "kind", "publishedOn", "checkedOn", "source", "items"]);
+const ITEM_KEYS = new Set(["id", "name", "serving", ...NUMERIC, "modification", "allergens"]);
+const CHAIN_KEYS = new Set(["id", "name", "kind", "publishedOn", "checkedOn", "source", "items",
+  "allergenSource", "allergensCovered"]);
+// The US major allergens, in this order wherever a list is written. An item's
+// `allergens` is what the chain's own allergen chart says it CONTAINS ("may
+// contain" and shared-fryer notes are not recorded); `[]` is "the chart lists
+// it and marks none of the ones it covers"; no key is "not stated". A chain's
+// `allergensCovered` is which of the nine its chart says it covers (a column
+// for each, or a statement that it marks the nine), so an app can say
+// "shellfish not stated" rather than implying "no shellfish". A chain whose
+// chart lists what items contain but never says what it covers has no
+// `allergensCovered`: its lists can hide an item, never clear one.
+const ALLERGENS = ["milk", "egg", "fish", "shellfish", "tree-nuts", "peanuts", "wheat", "soy", "sesame"];
 const KIND = /^[a-z]+(-[a-z]+)*$/;
 // The Gas station screen shows only rules whose kinds include "snacks", so no
 // chain may claim that kind or snack rules would reach its screen too.
@@ -65,6 +76,16 @@ function checkId(where, id, prefix) {
   if (prefix && !id.startsWith(prefix + "-")) err(where, `id should start with "${prefix}-"`);
   if (ids.has(id)) err(where, `duplicate id "${id}"`);
   ids.add(id);
+}
+
+// A list of allergens: known strings, no repeats, in ALLERGENS order.
+function allergenList(where, key, list) {
+  if (!Array.isArray(list)) { err(where, `${key} must be an array`); return false; }
+  for (const a of list) if (!ALLERGENS.includes(a)) err(where, `${key}: unknown allergen ${JSON.stringify(a)}`);
+  if (new Set(list).size !== list.length) err(where, `${key} repeats an allergen`);
+  const order = list.map((a) => ALLERGENS.indexOf(a));
+  if (order.some((x, i) => i > 0 && x < order[i - 1])) err(where, `${key} is not in the order ${ALLERGENS.join(", ")}`);
+  return true;
 }
 
 function checkKeys(where, obj, allowed) {
@@ -124,6 +145,13 @@ for (const [i, ch] of (data.chains ?? []).entries()) {
     else if (isDate(ch.checkedOn) && docDateDay(ch.publishedOn) > ch.checkedOn) err(w, `publishedOn ${ch.publishedOn} is after checkedOn ${ch.checkedOn}`);
   }
   if (!isURL(ch.source)) err(w, `source ${JSON.stringify(ch.source)} is not an https URL`);
+  const covered = ch.allergensCovered;
+  const hasAllergens = "allergenSource" in ch;
+  if (hasAllergens && !isURL(ch.allergenSource)) err(w, `allergenSource ${JSON.stringify(ch.allergenSource)} is not an https URL`);
+  if ("allergensCovered" in ch) {
+    if (!hasAllergens) err(w, "allergensCovered without an allergenSource");
+    if (allergenList(w, "allergensCovered", covered) && covered.length === 0) err(w, "allergensCovered must name at least one allergen (omit it when the chart doesn't say)");
+  }
   if (!Array.isArray(ch.items) || ch.items.length === 0) { err(w, "no items"); continue; }
   if (ch.items.length < 5 || ch.items.length > 10) warn(w, `${ch.items.length} items (spec: 5-10)`);
   for (const it of ch.items) {
@@ -134,6 +162,12 @@ for (const [i, ch] of (data.chains ?? []).entries()) {
     if (!nonEmpty(it.serving)) err(wi, "missing serving");
     if ("modification" in it && !nonEmpty(it.modification)) err(wi, "empty modification (omit the key instead)");
     checkNutrition(wi, it);
+    if ("allergens" in it) {
+      if (!hasAllergens) err(wi, "allergens without the chain's allergenSource");
+      else if (allergenList(wi, "allergens", it.allergens) && Array.isArray(covered)) {
+        for (const a of it.allergens) if (!covered.includes(a)) err(wi, `allergen "${a}" is not in the chain's allergensCovered`);
+      }
+    }
   }
 }
 

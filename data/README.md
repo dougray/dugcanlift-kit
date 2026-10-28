@@ -39,11 +39,12 @@ server's `Last-Modified`, which is when the file was uploaded. Not the upload
 path in the URL.
 
 **A document that states no date has no key.** Never a guess, never the day it
-was fetched. Five of the eleven chains are in this position and it is not a
+was fetched. Eight of the nineteen chains are in this position and it is not a
 gap to fill: Wendy's, Starbucks and Chick-fil-A publish live pages that say
-nothing about themselves, QuikTrip's PDF prints no date, and Sonic's says only
-"SUMMER 2026" — a season is not a month, and `2026` alone would be inventing
-the rest. `road-food-SOURCES.md` records what each document does say.
+nothing about themselves, the PDFs of QuikTrip, Love's and Pilot Flying J print
+no date, Sonic's says only "SUMMER 2026" — a season is not a month, and `2026`
+alone would be inventing the rest — and Jack in the Box's says "effective as of
+November 2026", a month after it was read, which no `publishedOn` may be. `road-food-SOURCES.md` records what each document does say.
 
 ## Validate
 

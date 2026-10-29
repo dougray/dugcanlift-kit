@@ -34,6 +34,15 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.16.0 — spelled-out units
+
+- `IngredientParser` reads a unit word spelled out wherever it reads the abbreviation, in any case and with the same punctuation trimmed, and stores the abbreviation: gram(s), gramme(s) → `g`; kilogram(s), kilogramme(s), kilo(s) → `kg`; milligram(s), milligramme(s) → `mg`; ounce(s) → `oz`; pound(s) → `lb`; teaspoon(s) → `tsp`; tablespoon(s) → `tbsp`; milliliter(s), millilitre(s) → `ml`; liter(s), litre(s) → `l`. Allrecipes' "1.5 pounds ground beef" is 1.5 `lb` of "ground beef", costed at 680.388 g, where it was a count of "pounds ground beef" with no macros.
+- Because the stored unit is the existing abbreviation, costing (`grams(for:)`), shopping-list grouping, the count sentinel and "only weights get costed" follow unchanged. No line that parsed before parses differently: `lbs` stays `lbs`, `cups` stays `cups`. The known cost is pinned: "1 pound cake mix" is 1 `lb` of "cake mix", as "1 lb cake mix" already was.
+- Not added: `fl oz`, a bare `t` or `T`, `c.`, `pt`, `qt`, `stick`, or anything that needs a density.
+- The same table and the same cases are in the Android kit's `IngredientParser`, Coach web's `coach/parser.js` and LIFT web's `app.js`; all four give the same answer for every case.
+
+**No schema change.** Nothing here is a `@Model` property.
+
 ### 1.15.0 — food search that finds the food
 
 - `ReferenceDatabase.findFoods(_:limit:)` returns `FoodSearchResults` (`foods`, `matchesEveryWord`): the search to use where a person logs a meal. `searchFoods` is unchanged, because Coach costs a recipe line from its first hit and a new ranking would change a dish's macros.

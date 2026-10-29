@@ -31,6 +31,29 @@ public enum IngredientParser {
         "can", "cans", "pinch", "handful"
     ]
 
+    /// Unit words spelled out, as US recipe sites write them ("1.5 pounds
+    /// ground beef"), each stored as the abbreviation above. Storing the
+    /// abbreviation is the whole design: costing, shopping-list grouping and
+    /// the count sentinel already key on it, so a spelled-out line behaves
+    /// exactly like its abbreviated twin and nothing downstream changes.
+    ///
+    /// The same table, word for word, is in `coach/parser.js`, LIFT web's
+    /// `app.js` and the Android kit's `IngredientParser.kt`. Deliberately not
+    /// here: `fl oz`, a bare `t` or `T`, `c.`, `pt`, `qt`, `stick`, or
+    /// anything that needs a density.
+    private static let spelledUnits: [String: String] = [
+        "gram": "g", "grams": "g", "gramme": "g", "grammes": "g",
+        "kilogram": "kg", "kilograms": "kg", "kilogramme": "kg", "kilogrammes": "kg",
+        "kilo": "kg", "kilos": "kg",
+        "milligram": "mg", "milligrams": "mg", "milligramme": "mg", "milligrammes": "mg",
+        "ounce": "oz", "ounces": "oz",
+        "pound": "lb", "pounds": "lb",
+        "teaspoon": "tsp", "teaspoons": "tsp",
+        "tablespoon": "tbsp", "tablespoons": "tbsp",
+        "milliliter": "ml", "milliliters": "ml", "millilitre": "ml", "millilitres": "ml",
+        "liter": "l", "liters": "l", "litre": "l", "litres": "l"
+    ]
+
     /// Grams for the units that convert to a weight without guessing.
     ///
     /// Volume and vague units are deliberately absent. A tablespoon of oil and
@@ -53,8 +76,8 @@ public enum IngredientParser {
         let words = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
         if let first = words.first {
             let candidate = String(first).lowercased().trimmingCharacters(in: .punctuationCharacters)
-            if units.contains(candidate) {
-                unit = candidate
+            if let known = units.contains(candidate) ? candidate : spelledUnits[candidate] {
+                unit = known
                 rest = words.count > 1 ? words[1] : ""[...]
             }
         }

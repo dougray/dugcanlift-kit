@@ -13,6 +13,8 @@ tag rather than tracking a branch: a change here reaches two shipped apps.
 
 ## How the apps consume this
 
+`bookmarklet/` holds the "Send to LIFT" / "Send to Coach" recipe bookmarklet and the `r1` recipe-link format every build reads; see `bookmarklet/README.md`.
+
 Both apps pin an **exact tag** — `url:` plus `exactVersion:` in their
 `project.yml` — not a range and not a branch.
 

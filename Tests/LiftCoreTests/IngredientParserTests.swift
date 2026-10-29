@@ -126,4 +126,105 @@ final class IngredientParserTests: XCTestCase {
         }
         XCTAssertEqual(IngredientParser.parse("1/3 cup flour", sortOrder: 0).displayText, "0.333333 cup flour")
     }
+
+    // MARK: - Spelled-out units
+
+    /// The case table for spelled-out units. The same lines and answers are in
+    /// `IngredientParserTest` (dugcanlift-kit-android), `coach/parser.test.mjs`
+    /// (dugcanlift-coach) and `lift/ingredient-parser.test.mjs`
+    /// (dugcanlift-site): all four parsers must give the same answer.
+    private static let spelledCases: [(line: String, qty: Double, unit: String, item: String)] = [
+        ("1.5 pounds ground beef", 1.5, "lb", "ground beef"),
+        ("2 Tablespoons olive oil", 2, "tbsp", "olive oil"),
+        ("500 grams flour", 500, "g", "flour"),
+        ("1 kilo potatoes", 1, "kg", "potatoes"),
+        ("8 ounces cream cheese, softened", 8, "oz", "cream cheese, softened"),
+        ("1 litre stock", 1, "l", "stock"),
+        ("250 millilitres milk", 250, "ml", "milk"),
+        ("3 Teaspoons. sea salt", 3, "tsp", "sea salt"),
+        // The known cost of the rule, pinned on purpose: "pound cake" is read
+        // as a pound of cake, exactly as "1 lb cake mix" already is.
+        ("1 pound cake mix", 1, "lb", "cake mix"),
+        ("1 lb cake mix", 1, "lb", "cake mix"),
+        // Lines that parsed before are unchanged.
+        ("2 eggs", 2, IngredientParser.countUnit, "eggs"),
+        ("2 lbs chicken", 2, "lbs", "chicken"),
+        ("1 1/2 cups flour", 1.5, "cups", "flour"),
+    ]
+
+    func testSpelledOutUnitsAreStoredAsTheirAbbreviation() throws {
+        for c in Self.spelledCases {
+            let parsed = IngredientParser.parse(c.line, sortOrder: 0)
+            XCTAssertEqual(try XCTUnwrap(parsed.qty, c.line), c.qty, accuracy: 0.000001, c.line)
+            XCTAssertEqual(parsed.unit, c.unit, c.line)
+            XCTAssertEqual(parsed.item, c.item, c.line)
+            XCTAssertEqual(parsed.rawText, c.line, c.line)
+        }
+    }
+
+    func testSpelledOutWeightsAreCostedAndVolumesAreNot() throws {
+        func grams(_ line: String) -> Double? {
+            IngredientParser.grams(for: IngredientParser.parse(line, sortOrder: 0))
+        }
+        XCTAssertEqual(try XCTUnwrap(grams("1.5 pounds ground beef")), 680.388, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(grams("500 grams flour")), 500, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(grams("1 kilo potatoes")), 1000, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(grams("8 ounces cream cheese, softened")), 226.796, accuracy: 0.0001)
+        XCTAssertEqual(IngredientParser.parse("500 grams flour", sortOrder: 0).grams, 500)
+        XCTAssertNil(IngredientParser.parse("1.5 pounds ground beef", sortOrder: 0).grams,
+                     "the stored grams field is for g only, as it is for lb")
+        XCTAssertNil(grams("2 Tablespoons olive oil"), "a volume is never costed, spelled out or not")
+        XCTAssertNil(grams("1 litre stock"))
+        XCTAssertNil(grams("250 millilitres milk"))
+    }
+
+    func testEverySpelledOutWordMapsToItsAbbreviationInAnyCase() {
+        let table: [(String, String)] = [
+            ("gram", "g"), ("grams", "g"), ("gramme", "g"), ("grammes", "g"),
+            ("kilogram", "kg"), ("kilograms", "kg"), ("kilogramme", "kg"), ("kilogrammes", "kg"),
+            ("kilo", "kg"), ("kilos", "kg"),
+            ("milligram", "mg"), ("milligrams", "mg"), ("milligramme", "mg"), ("milligrammes", "mg"),
+            ("ounce", "oz"), ("ounces", "oz"),
+            ("pound", "lb"), ("pounds", "lb"),
+            ("teaspoon", "tsp"), ("teaspoons", "tsp"),
+            ("tablespoon", "tbsp"), ("tablespoons", "tbsp"),
+            ("milliliter", "ml"), ("milliliters", "ml"), ("millilitre", "ml"), ("millilitres", "ml"),
+            ("liter", "l"), ("liters", "l"), ("litre", "l"), ("litres", "l"),
+        ]
+        for (word, abbreviation) in table {
+            for spelling in [word, word.uppercased(), word.prefix(1).uppercased() + word.dropFirst()] {
+                let line = "2 \(spelling), rice"
+                let parsed = IngredientParser.parse(line, sortOrder: 0)
+                XCTAssertEqual(parsed.unit, abbreviation, line)
+                XCTAssertEqual(parsed.item, "rice", line)
+            }
+        }
+    }
+
+    func testAUnitWithNothingAfterItIsStillNotAnIngredient() {
+        // "3 Teaspoons." alone names no ingredient, so it stays the raw line,
+        // exactly as "3 tsp." does.
+        for line in ["3 Teaspoons.", "3 tsp."] {
+            let parsed = IngredientParser.parse(line, sortOrder: 0)
+            XCTAssertNil(parsed.qty, line)
+            XCTAssertNil(parsed.unit, line)
+            XCTAssertNil(parsed.item, line)
+        }
+    }
+
+    func testOutOfScopeUnitsAreStillCounts() {
+        // fl oz, t/T, c., pt, qt and stick are not units here: each would need
+        // a rule this change does not make, or a density.
+        for line in ["2 t sugar", "2 T butter", "1 c. milk", "1 pt cream", "1 qt stock", "1 stick butter", "2 fl oz rum"] {
+            XCTAssertEqual(IngredientParser.parse(line, sortOrder: 0).unit, IngredientParser.countUnit, line)
+        }
+    }
+
+    func testAWordThatOnlyLooksLikeATableKeyIsNotAUnit() {
+        // The web parsers keep the table in a plain object, whose prototype's
+        // names must not read as units. Pinned here too so all four agree.
+        for line in ["2 constructor bolts", "1 toString cake", "3 __proto__ things"] {
+            XCTAssertEqual(IngredientParser.parse(line, sortOrder: 0).unit, IngredientParser.countUnit, line)
+        }
+    }
 }

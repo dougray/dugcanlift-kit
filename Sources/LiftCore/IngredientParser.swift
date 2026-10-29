@@ -54,6 +54,29 @@ public enum IngredientParser {
         "liter": "l", "liters": "l", "litre": "l", "litres": "l"
     ]
 
+    /// Every whitespace character, written out rather than left to the
+    /// platform's idea of whitespace: U+0009-U+000D, U+0020, U+00A0, U+1680,
+    /// U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF
+    /// (JavaScript's `\s`). Before parsing, each one becomes a plain space, so
+    /// a non-breaking space or a tab pasted from a recipe page splits words
+    /// like a space does. `rawText` keeps the line as it was. The same set,
+    /// character for character, is in all four parsers.
+    private static let whitespace: Set<UInt32> = {
+        var set: Set<UInt32> = [0x20, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF]
+        set.formUnion(0x09...0x0D)
+        set.formUnion(0x2000...0x200A)
+        return set
+    }()
+
+    /// The line with every character in `whitespace` replaced by U+0020.
+    static func normalizingWhitespace(_ raw: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in raw.unicodeScalars {
+            scalars.append(whitespace.contains(scalar.value) ? " " : scalar)
+        }
+        return String(scalars)
+    }
+
     /// Grams for the units that convert to a weight without guessing.
     ///
     /// Volume and vague units are deliberately absent. A tablespoon of oil and
@@ -65,7 +88,8 @@ public enum IngredientParser {
     ]
 
     public static func parse(_ raw: String, sortOrder: Int) -> RecipeIngredient {
-        var rest = raw[...]
+        let line = normalizingWhitespace(raw)
+        var rest = line[...]
         let quantity = takeQuantity(&rest)
 
         guard let quantity else {
@@ -82,7 +106,9 @@ public enum IngredientParser {
             }
         }
 
-        let item = rest.trimmingCharacters(in: .whitespaces)
+        // Plain spaces only: the line is already normalized, and Foundation's
+        // `.whitespaces` would also strip U+200B, which no other parser does.
+        let item = rest.trimmingCharacters(in: [" "])
         guard !item.isEmpty else {
             return RecipeIngredient(rawText: raw, sortOrder: sortOrder)
         }

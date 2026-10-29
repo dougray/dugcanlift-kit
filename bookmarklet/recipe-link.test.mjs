@@ -78,11 +78,13 @@ test('the fixture link decodes to the expected page', () => {
   assert.deepEqual(decodeRecipeLink(link), JSON.parse(fixture('recipe-link-expected.json')));
 });
 
-test('the fixture link is what the bookmarklet writes for the fixture page', async () => {
+test('the bookmarklet writes a link that means what the fixture means', async () => {
   // Pins the fixture to the encoder, so a decoder port that agrees with the
-  // fixture agrees with the bookmarklet people actually run.
+  // fixture agrees with the bookmarklet people actually run. Compared decoded,
+  // never as bytes: deflate output differs between zlib builds, and so between
+  // Node versions and between browsers, while every inflater reads all of them.
   const { navigated } = await run(bookmarklets.liftApp, { blocks: page.blocks });
-  assert.equal(navigated, fixture('recipe-link.txt').trim());
+  assert.deepEqual(decodeRecipeLink(navigated), decodeRecipeLink(fixture('recipe-link.txt').trim()));
 });
 
 const encode = (obj) => '#r1' + deflateRawSync(Buffer.from(JSON.stringify(obj)))

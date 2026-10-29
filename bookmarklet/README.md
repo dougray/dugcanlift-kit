@@ -21,7 +21,7 @@ the contract, as it is for Safari.
 | `bookmarklets.json` | The four ready `javascript:` URLs. Never edited by hand. |
 | `bookmarklets.sha256` | sha256 of `bookmarklets.json`'s bytes. Pinned by every app that ships it. |
 | `recipe-link.mjs` | The reference decoder. Every build ports it. |
-| `fixtures/recipe-link.txt` | A link the bookmarklet itself wrote, for `fixtures/page-jsonld.json`. |
+| `fixtures/recipe-link.txt` | A link the bookmarklet itself wrote, for `fixtures/page-jsonld.json`.  Ports compare what it decodes to, never its bytes: deflate output differs between zlib builds. |
 | `fixtures/recipe-link-expected.json` | What it decodes to. Every port is checked against this pair. |
 
 ## The four targets

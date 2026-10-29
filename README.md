@@ -36,6 +36,15 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.16.1 — whitespace
+
+- `IngredientParser` turns every whitespace character in a line into a plain space before parsing, from one set written out in the code rather than the platform's idea of whitespace: U+0009–U+000D, U+0020, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF (JavaScript's `\s`). A non-breaking space or a tab pasted from a recipe page now splits words like a space does: `"1.5\u{00A0}pounds ground beef"` is 1.5 `lb`, `"2 cups\u{00A0}rice"` is 2 `cups` of "rice", `"\t2 cups rice"` parses, and `"1\u{00A0}1/2"` is 1.5. Before, only U+0020 split words here.
+- Parsing, the quantity, the unit and the item all read the normalized copy, so the item comes out with plain spaces. `rawText` keeps the line exactly as given.
+- A character outside the set (U+200B, U+001C, U+0085) is not a space. The punctuation, "½" and number-reading differences between the four parsers are unchanged.
+- The same set and the same cases are in the Android kit, Coach web's `coach/parser.js` and LIFT web's `app.js`.
+
+**No schema change.** Nothing here is a `@Model` property.
+
 ### 1.16.0 — spelled-out units
 
 - `IngredientParser` reads a unit word spelled out wherever it reads the abbreviation, in any case and with the same punctuation trimmed, and stores the abbreviation: gram(s), gramme(s) → `g`; kilogram(s), kilogramme(s), kilo(s) → `kg`; milligram(s), milligramme(s) → `mg`; ounce(s) → `oz`; pound(s) → `lb`; teaspoon(s) → `tsp`; tablespoon(s) → `tbsp`; milliliter(s), millilitre(s) → `ml`; liter(s), litre(s) → `l`. Allrecipes' "1.5 pounds ground beef" is 1.5 `lb` of "ground beef", costed at 680.388 g, where it was a count of "pounds ground beef" with no macros.

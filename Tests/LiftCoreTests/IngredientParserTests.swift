@@ -227,4 +227,66 @@ final class IngredientParserTests: XCTestCase {
             XCTAssertEqual(IngredientParser.parse(line, sortOrder: 0).unit, IngredientParser.countUnit, line)
         }
     }
+
+    // MARK: - Whitespace
+
+    /// Every whitespace character in the line becomes a plain space before
+    /// parsing: U+0009-U+000D, U+0020, U+00A0, U+1680, U+2000-U+200A, U+2028,
+    /// U+2029, U+202F, U+205F, U+3000, U+FEFF. The same cases are in the other
+    /// three parsers' suites.
+    private static let whitespaceCases: [(line: String, qty: Double, unit: String, item: String)] = [
+        ("1.5\u{00A0}pounds ground beef", 1.5, "lb", "ground beef"), // NBSP between number and unit
+        ("2 cups\u{00A0}rice", 2, "cups", "rice"), // NBSP between unit and item
+        ("1 lb\u{00A0}ground\u{00A0}beef", 1, "lb", "ground beef"), // the item comes out with plain spaces
+        ("2\tcups rice", 2, "cups", "rice"), // tab between number and unit
+        ("\t2 cups rice", 2, "cups", "rice"), // a leading tab
+        ("250\u{202F}g flour", 250, "g", "flour"), // U+202F narrow no-break space
+        ("1\u{00A0}1/2 cups flour", 1.5, "cups", "flour"), // "1 1/2" with an NBSP
+        ("\u{FEFF}400 g chicken thigh", 400, "g", "chicken thigh"), // a byte-order mark
+    ]
+
+    private static let whitespaceSet: [UInt32] = [
+        0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x20, 0xA0, 0x1680,
+        0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A,
+        0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF,
+    ]
+
+    func testWhitespaceOfEveryKindSplitsWordsLikeASpace() {
+        for c in Self.whitespaceCases {
+            let parsed = IngredientParser.parse(c.line, sortOrder: 0)
+            XCTAssertEqual(parsed.qty, c.qty, c.line.debugDescription)
+            XCTAssertEqual(parsed.unit, c.unit, c.line.debugDescription)
+            XCTAssertEqual(parsed.item, c.item, c.line.debugDescription)
+        }
+    }
+
+    func testEveryCharacterInTheSetIsASpaceWhereverItFalls() throws {
+        for code in Self.whitespaceSet {
+            let ws = String(Character(try XCTUnwrap(Unicode.Scalar(code))))
+            let hex = String(code, radix: 16)
+            let parsed = IngredientParser.parse("\(ws)2\(ws)1/2\(ws)cups\(ws)basmati\(ws)rice\(ws)", sortOrder: 0)
+            XCTAssertEqual(parsed.qty, 2.5, hex)
+            XCTAssertEqual(parsed.unit, "cups", hex)
+            XCTAssertEqual(parsed.item, "basmati rice", hex)
+        }
+    }
+
+    func testACharacterOutsideTheSetIsNotASpace() {
+        // U+200B zero-width space, U+001C file separator and U+0085 next line
+        // are not in the set, so "cups" never becomes a unit through them.
+        for ws in ["\u{200B}", "\u{001C}", "\u{0085}"] {
+            let parsed = IngredientParser.parse("2\(ws)cups rice", sortOrder: 0)
+            let hex = String(ws.unicodeScalars.first!.value, radix: 16)
+            XCTAssertEqual(parsed.unit, IngredientParser.countUnit, hex)
+            XCTAssertEqual(parsed.item, "\(ws)cups rice", hex)
+        }
+    }
+
+    func testRawTextKeepsTheLineByteForByte() {
+        let lines = Self.whitespaceCases.map(\.line) + ["\u{3000}salt\u{00A0}to taste\t"]
+        for line in lines {
+            XCTAssertEqual(Array(IngredientParser.parse(line, sortOrder: 0).rawText.utf8), Array(line.utf8),
+                           line.debugDescription)
+        }
+    }
 }

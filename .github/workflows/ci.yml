@@ -57,6 +57,12 @@ jobs:
       - name: recipes.json matches recipes.db
         run: python3 -I Tools/export_recipes_json.py --check
 
+      # The barcode bundle's builder, against its hand-written USDA sample, and
+      # the shared barcode fixture's checksum. No download: the real build is
+      # run by hand at each USDA release (data/README.md, "Branded foods").
+      - name: Branded foods builder tests
+        run: python3 -I Tools/tests/test_build_branded_foods.py
+
       # The recipe bookmarklet: the four javascript: URLs are built from
       # send-recipe.js, and the decoder is checked against a link it wrote.
       - name: Bookmarklets match their source

@@ -17,8 +17,8 @@ reader supplies the serving count on import, the rule the iPhones hold.
 is shown. The file as a whole is CC BY-SA 4.0 (see `build_recipes.py`).
 
 Usage:
-  tools/export_recipes_json.py            write data/recipes.json and .sha256
-  tools/export_recipes_json.py --check    exit 1 if either is out of date
+  Tools/export_recipes_json.py            write data/recipes.json and .sha256
+  Tools/export_recipes_json.py --check    exit 1 if either is out of date
 """
 import hashlib
 import json
@@ -59,7 +59,7 @@ def export() -> bytes:
 
     doc = {
         "license": "CC BY-SA 4.0",
-        "note": "Derived from LiftReference's recipes.db by tools/export_recipes_json.py. "
+        "note": "Derived from LiftReference's recipes.db by Tools/export_recipes_json.py. "
                 "Never edit by hand. Show each recipe's own license and attribution.",
         "recipes": recipes,
     }
@@ -73,7 +73,7 @@ def main() -> int:
         stale = [p.name for p, want in ((OUT, data), (SUM, digest.encode()))
                  if not p.exists() or p.read_bytes() != want]
         if stale:
-            print(f"out of date: {', '.join(stale)} -- run tools/export_recipes_json.py",
+            print(f"out of date: {', '.join(stale)} -- run Tools/export_recipes_json.py",
                   file=sys.stderr)
             return 1
         print(f"recipes.json matches recipes.db ({len(json.loads(data)['recipes'])} recipes)")

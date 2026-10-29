@@ -196,8 +196,8 @@ ships the data:
 The iPhone apps read `recipes.db` through `LiftReference`. LIFT Android, Coach
 Android, LIFT web and Coach web cannot, so they bundle `recipes.json` and pin
 `recipes.sha256`, copied over together as `road-food.json` is. Rebuild the
-database with `tools/build_recipes.py`, then run
-`tools/export_recipes_json.py`. CI runs it with `--check`.
+database with `Tools/build_recipes.py`, then run
+`Tools/export_recipes_json.py`. CI runs it with `--check`.
 
 Each recipe carries its own `license` and `attribution` (501 CC BY-SA 4.0, 121
 public domain), and every build shows them wherever it shows the recipe. A null

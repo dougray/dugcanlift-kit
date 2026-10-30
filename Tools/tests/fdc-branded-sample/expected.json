@@ -17,7 +17,7 @@
     { "code": 70000000034,    "fdc": 1015, "why": "spaces in the code ignored; no brand at all; no serving",
       "name": "Spaced Code Oats", "brand": null,
       "kcal": 3790, "protein": 132, "carbs": 677, "fat": 65, "fiber": 101, "sugar": 10, "satfat": 11, "sodium": 60, "serving": null, "ml": 0 },
-    { "code": 70000000058,    "fdc": 1018, "why": "negative fibre and blank sugar are unknown, not zero; 3.57 g rounds to 3.6",
+    { "code": 70000000058,    "fdc": 1018, "why": "negative fiber and blank sugar are unknown, not zero; 3.57 g rounds to 3.6",
       "name": "Sea Salt Crisps", "brand": "Crisp Co",
       "kcal": 5360, "protein": 71, "carbs": 536, "fat": 321, "fiber": null, "sugar": null, "satfat": 36, "sodium": 5360, "serving": 280, "ml": 0 },
     { "code": 4006381333931,  "fdc": 1003, "why": "no brand_name, so brand_owner; halves round up (3.45 -> 3.5, 15.25 -> 15.3, 12.05 -> 12.1, 1.25 -> 1.3)",

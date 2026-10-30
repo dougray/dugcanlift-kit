@@ -289,6 +289,17 @@ class RefusingInputItWasNotWrittenFor(unittest.TestCase):
             with self.assertRaisesRegex(bbf.BuildError, "1004"):
                 bbf.build(d, Path(tmp) / "out", released="2026-04-30")
 
+    def test_a_renamed_nutrient_stops_the_build_and_says_which(self):
+        # USDA renamed 2000 between releases ("Sugars, total including NLEA" to
+        # "Total Sugars"); a rename is read by a person before it is accepted.
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self.copy_sample(tmp)
+            text = (d / "nutrient.csv").read_text(encoding="utf-8")
+            (d / "nutrient.csv").write_text(
+                text.replace('"Total Sugars"', '"Sugars, total including NLEA"'), encoding="utf-8")
+            with self.assertRaisesRegex(bbf.BuildError, r"nutrient 2000 .*Sugars, total including NLEA"):
+                bbf.build(d, Path(tmp) / "out", released="2026-04-30")
+
     def test_a_missing_column_stops_the_build(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = self.copy_sample(tmp)

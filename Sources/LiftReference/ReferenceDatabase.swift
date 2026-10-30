@@ -63,7 +63,12 @@ public enum ReferenceDatabaseError: Error {
 ///
 /// THREE separate databases, deliberately never joined:
 ///
-///   food.db       USDA (public domain) + Open Food Facts (ODbL)
+///   food.db       USDA (public domain) -- every shipped row's `source` is
+///                 `usda`. `build_reference.py` can add Open Food Facts
+///                 (ODbL); no shipped build has, and one that does must say
+///                 so here. Its `barcode` column is empty in every row: the
+///                 barcode bundle (`Tools/build_branded_foods.py`) is a
+///                 separate file that LiftReference does not carry.
 ///   exercises.db  free-exercise-db (public domain) + wger (CC-BY-SA 3.0)
 ///   recipes.db    UniTools world recipes (CC BY-SA 4.0) + public-domain
 ///                 cookbooks, built by `Tools/build_recipes.py`

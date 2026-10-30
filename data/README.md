@@ -203,3 +203,54 @@ Each recipe carries its own `license` and `attribution` (501 CC BY-SA 4.0, 121
 public domain), and every build shows them wherever it shows the recipe. A null
 `servings` means the source states no yield: those rows carry whole-dish
 totals, and the reader supplies the serving count on import.
+
+# Branded foods (the barcode bundle)
+
+In-house programme, project 2 (LIFT superproject,
+`docs/superpowers/specs/2026-10-29-in-house-project-2-design.md`). LIFT
+Android, LIFT iPhone and LIFT web look barcodes up, and search branded product
+names, in one SQLite file built from USDA FoodData Central's branded foods
+(public domain, CC0 1.0). No Coach build carries it, and it is **not** in
+`LiftReference`, which Coach iPhone links.
+
+| File | What it is |
+|---|---|
+| `Tools/build_branded_foods.py` | The builder: USDA's branded-food CSV zip in, the database, its gzip and `branded-foods.json` out. Stdlib only. |
+| `Tools/tests/` | Its tests, against `fdc-branded-sample/`: four CSVs in USDA's layout and `expected.json`, all written by hand. |
+| `data/barcodes.json` | The barcode fixture every LIFT build reads codes against. Copied byte for byte from lift-ios, where it was written by hand; never generated. |
+| `data/barcodes.sha256` | Its sha256, one bare line, pinned by each copy. |
+| `data/branded-foods.json` | The manifest of the current release. Arrives with the first real build. |
+
+**The database is never committed** -- not here, not in an app repo. It is a
+release asset of this repository, tagged `branded-foods-<YYYY-MM>.<n>`, which
+SwiftPM ignores because it is not a version. Each app commits a verbatim copy
+of `branded-foods.json`; its build fetches the asset that names, checks the
+gzip's and the database's sha256 against it, and fails rather than ship
+anything else. A release asset is never replaced: a rebuild of the same USDA
+release is `.2`.
+
+## Build
+
+```sh
+python3 -I Tools/tests/test_build_branded_foods.py      # no network, no download
+python3 -I Tools/build_branded_foods.py ~/Downloads/fdc/FoodData_Central_branded_food_csv_2026-04-30.zip
+```
+
+The zip is read in place, never unpacked (3.1 GB if it were). Output goes to
+`.build/branded-foods/`; the summary it prints is the drop report, which is the
+part to read: discontinued codes, codes missing a core macro, codes no scan
+could give (and how many of those are all zeros, or valid only as a UPC-E),
+and records superseded by a newer one. The same input and the same SQLite give
+the same bytes; another SQLite may not, so the manifest's `rowsSha256` digests
+the rows themselves.
+
+## Refresh (April and December, when USDA republishes)
+
+1. Download USDA's branded-food CSV zip from fdc.nal.usda.gov into an empty
+   directory of its own.
+2. Run the builder. Read the report against the last manifest's `counts`.
+3. Spot-check real products by both their UPC-A and EAN-13 spellings.
+4. Doug creates the release `branded-foods-<YYYY-MM>.1` and uploads the
+   `.db.gz`; then `branded-foods.json` is committed here, in a PR.
+5. Copy `branded-foods.json` into each LIFT repo, in a PR there. Ship it with
+   the next app release. Delete the download.

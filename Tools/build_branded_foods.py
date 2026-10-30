@@ -96,7 +96,9 @@ NUTRIENTS = {
     "carbs": (1005, "Carbohydrate, by difference", "G"),
     "fat": (1004, "Total lipid (fat)", "G"),
     "fiber": (1079, "Fiber, total dietary", "G"),
-    "sugar": (2000, "Sugars, total including NLEA", "G"),
+    # Named "Sugars, total including NLEA" in older releases; "Total Sugars"
+    # in 2026-04-30's, with the same nutrient_nbr (269), so the same nutrient.
+    "sugar": (2000, "Total Sugars", "G"),
     "satfat": (1258, "Fatty acids, total saturated", "G"),
     "sodium": (1093, "Sodium, Na", "MG"),
 }

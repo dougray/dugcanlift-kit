@@ -36,6 +36,20 @@ Cutting a release: merge to `main`, then tag and push the tag to both
 
 ## Changelog
 
+### 1.17.0 — one answer for every line
+
+`IngredientParser` now reads every line the way the Android kit, Coach web and LIFT web do, and all four are checked against one case table, `data/ingredient-lines.json`, written by hand from the rules in `data/README.md` and pinned in the other three repos by `ingredient-lines.sha256`. The rules decided here:
+
+- **Vulgar fractions** are read: the eighteen Unicode names a fraction with (¼ ½ ¾ ⅐ ⅑ ⅒ ⅓ ⅔ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞), alone or after a whole number with or without spaces. `"½ cup milk"` is 0.5 `cup`, `"1½ cups flour"` and `"1 ½ cups flour"` are 1.5 `cups`. Before, `"1 ½ cups flour"` was a count of 1 "½ cups flour" on all four, and `"1½"` was unparsed here and a count of 1 on the other three. U+2044 FRACTION SLASH reads as `/`.
+- **A quantity must end where its number ends.** The line is not read when what follows the quantity, after spaces, is a number character (Unicode category N), a slash, or one of `. , - ‐ ‑ ‒ – — −` before a number character: `"1,5 kg"`, `"1,000 g"`, `"1-2 cups"`, `"1 2 eggs"`, `"1/2/3"`, `"2² cups"`. Each used to be read as the number before the break, a confident wrong quantity. A dash before a letter is fine: `"1/2-inch piece ginger"`.
+- **Numbers are ASCII digits with at most one point**, as `Double()` already required here: `"1.2.3"` is not read (the web read 1.2), `"1."` and `".5"` still are. A fraction is whole numbers and a mixed number starts with one, so `"1/2.5"`, `"1.5/2"` and `"1.5 1/2"` are no longer read. A mixed number may have more than one space. Every number must be finite: a 400-digit quantity is not read rather than read as infinity.
+- **Unit punctuation**: a trailing run of `. , : ;` is trimmed from the unit word, and nothing else. `"2 tbsp: oil"` and `"1 cup; sugar"` read the unit everywhere; `"(tbsp)"`, `"tbsp)"`, `"tbsp-"`, `"-ounce"` and `"cups!"` are no longer units here (`.punctuationCharacters` from both ends was this parser's alone). `"2 cups:"` is not read, as `"2 cups"` is not.
+- The parser reads Unicode scalars rather than `Character`s, so a combining mark cannot join two words here and nowhere else.
+
+Every line whose parse changed is listed, with why, in the PR that made this change. Lines that parsed the same on all four and were right parse as before.
+
+**No schema change.** Nothing here is a `@Model` property.
+
 ### 1.16.1 — whitespace
 
 - `IngredientParser` turns every whitespace character in a line into a plain space before parsing, from one set written out in the code rather than the platform's idea of whitespace: U+0009–U+000D, U+0020, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF (JavaScript's `\s`). A non-breaking space or a tab pasted from a recipe page now splits words like a space does: `"1.5\u{00A0}pounds ground beef"` is 1.5 `lb`, `"2 cups\u{00A0}rice"` is 2 `cups` of "rice", `"\t2 cups rice"` parses, and `"1\u{00A0}1/2"` is 1.5. Before, only U+0020 split words here.

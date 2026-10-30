@@ -289,4 +289,62 @@ final class IngredientParserTests: XCTestCase {
                            line.debugDescription)
         }
     }
+
+    // MARK: - The shared case table
+
+    /// `data/ingredient-lines.json`, the case table every parser is checked
+    /// against: this one, the Android kit's, Coach web's and LIFT web's. Its
+    /// answers are written by hand from the rules in `data/README.md`; the
+    /// other three repos carry byte-for-byte copies pinned by
+    /// `ingredient-lines.sha256`.
+    private struct CaseTable: Decodable {
+        let countUnit: String
+        let cases: [Case]
+
+        struct Case: Decodable {
+            let line: String
+            let unparsed: Bool?
+            let qty: Double?
+            let unit: String?
+            let item: String?
+            let grams: Double?
+        }
+    }
+
+    private func caseTable() throws -> CaseTable {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // LiftCoreTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // the package root
+            .appendingPathComponent("data/ingredient-lines.json")
+        // JSONDecoder, not JSONSerialization, which drops a U+FEFF inside a
+        // string and would quietly test a different line.
+        return try JSONDecoder().decode(CaseTable.self, from: Data(contentsOf: url))
+    }
+
+    func testEveryLineInTheSharedCaseTable() throws {
+        let table = try caseTable()
+        XCTAssertEqual(table.countUnit, IngredientParser.countUnit)
+        XCTAssertGreaterThan(table.cases.count, 100)
+        for c in table.cases {
+            let label = c.line.debugDescription
+            let parsed = IngredientParser.parse(c.line, sortOrder: 0)
+            XCTAssertEqual(Array(parsed.rawText.utf8), Array(c.line.utf8), label)
+            if c.unparsed == true {
+                XCTAssertNil(parsed.qty, label)
+                XCTAssertNil(parsed.unit, label)
+                XCTAssertNil(parsed.item, label)
+                XCTAssertNil(parsed.grams, label)
+                continue
+            }
+            XCTAssertEqual(try XCTUnwrap(parsed.qty, label), try XCTUnwrap(c.qty, label), accuracy: 1e-9, label)
+            XCTAssertEqual(parsed.unit, c.unit, label)
+            XCTAssertEqual(parsed.item, c.item, label)
+            if let grams = c.grams {
+                XCTAssertEqual(try XCTUnwrap(parsed.grams, label), grams, accuracy: 1e-9, label)
+            } else {
+                XCTAssertNil(parsed.grams, label)
+            }
+        }
+    }
 }

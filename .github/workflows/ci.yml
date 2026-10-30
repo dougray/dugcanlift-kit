@@ -52,6 +52,11 @@ jobs:
       - name: Validate road-food.json
         run: node data/validate-road-food.mjs
 
+      # The case table all four ingredient parsers are tested against, and the
+      # checksum the other three repos pin their copies to.
+      - name: Validate ingredient-lines.json
+        run: node data/validate-ingredient-lines.mjs
+
       # recipes.json is derived from LiftReference's recipes.db for the builds
       # that cannot open SQLite; a rebuilt database without a re-export fails here.
       - name: recipes.json matches recipes.db

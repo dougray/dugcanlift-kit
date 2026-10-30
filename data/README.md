@@ -203,3 +203,92 @@ Each recipe carries its own `license` and `attribution` (501 CC BY-SA 4.0, 121
 public domain), and every build shows them wherever it shows the recipe. A null
 `servings` means the source states no yield: those rows carry whole-dish
 totals, and the reader supplies the serving count on import.
+
+# Ingredient lines
+
+| File | What it is |
+|---|---|
+| `ingredient-lines.json` | Lines and what every ingredient parser reads from them. Edited by hand only. |
+| `ingredient-lines.sha256` | The sha256 of `ingredient-lines.json`'s bytes. Written by the validator, never by hand. |
+| `validate-ingredient-lines.mjs` | Shape checks on the table, and the checksum. |
+
+The ingredient parser exists four times: `Sources/LiftCore/IngredientParser.swift`
+here (LIFT iPhone, Coach iPhone), `IngredientParser.kt` in
+`dugcanlift-kit-android` (LIFT Android, Coach Android), `coach/parser.js` in
+`dugcanlift-coach` and LIFT web's `lift/app.js` in `dugcanlift-site`. A recipe
+written on one reaches the others, so all four must read the same line the same
+way, and every one of their test suites runs its parser over this table.
+
+**The answers are written by hand from the rules below**, never generated from
+a parser: a table one parser wrote proves only that it agrees with itself. A
+parsed case gives `qty`, `unit`, `item` and `grams`; an unparsed case says
+`"unparsed": true` and nothing else, because the parser keeps only `rawText`.
+Compare `qty` to within 1e-9. `note` says why a case is there.
+
+## The rules
+
+When in doubt the line is not read: a confident wrong quantity on someone's
+shopping list is worse than a line they can read and check.
+
+1. **Whitespace.** Every character in JavaScript's `\s` (U+0009–U+000D, U+0020,
+   U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000,
+   U+FEFF) becomes a plain space first. `rawText` is the line as given.
+2. **A quantity**, after any leading spaces, is one of:
+   - a decimal: ASCII digits with at most one point and at least one digit —
+     `2`, `1.5`, `1.`, `.5`;
+   - a fraction of whole numbers, `1/2`, its denominator not zero. U+2044
+     FRACTION SLASH reads as `/`: `1⁄2`;
+   - a mixed number: a whole number, one or more spaces, a fraction — `1 1/2`;
+   - a vulgar fraction, alone or after a whole number with or without spaces —
+     `½`, `1½`, `1 ½`. The eighteen: ¼ ½ ¾ ⅐ ⅑ ⅒ ⅓ ⅔ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞.
+     Not ⅟ or ↉.
+
+   No line without one is read. Every number in it must be finite, so a
+   400-digit line is not read rather than read as infinity.
+3. **The quantity must end where the number ends.** The line is not read when
+   the next character after any spaces is
+   - a number character (Unicode category N: a digit, a vulgar fraction, a
+     superscript, another script's digit) — `1 2 eggs`, `1½ ½`, `2² cups`;
+   - a slash — `1/2/3`, `1.5/2`, `1/cup`, `1 /2`;
+   - one of `.` `,` `-` `‐` `‑` `‒` `–` `—` `−` followed, after any spaces, by a
+     number character — `1,5 kg`, `1,000 g`, `1-2 cups`, `1 - 2 cups`,
+     `1-1/2 cups`, `1. 2 cups`.
+
+   Each of those is a number the parser cannot read, and stopping short of it
+   would be the confident wrong quantity. A dash before a letter is fine:
+   `1/2-inch piece ginger` is ½ of "-inch piece ginger". So a decimal is never
+   a fraction's numerator or denominator, or a mixed number's whole part, and a
+   vulgar fraction follows only a whole number.
+4. **The unit** is the next word, lowercased, with a trailing run of `.` `,`
+   `:` `;` removed: `tbsp.`, `tbsp:`, `cup;`, `tbsp.:`. Nothing is removed from
+   the front, and nothing else from the end: `(tbsp)`, `tbsp)`, `tbsp-` and
+   `-ounce` are not units. It is looked up among the abbreviations, then the
+   spelled-out words, and stored as the abbreviation.
+5. **The item** is the rest after the unit (or after the quantity, when the
+   word is not a unit, with the unit the count sentinel), spaces trimmed. A
+   line whose item is empty is not read: `2 cups`, `3 tsp.`, `2 cups:`.
+6. `grams` is the quantity when the unit is `g` and null otherwise.
+
+Pinned on purpose: `1 to 2 cups rice` is 1 of "to 2 cups rice" — a range in
+words is not detected — and `1 pound cake mix` is a pound of cake mix.
+
+## Changing a rule
+
+Change the rule here, then the cases, by hand. Then:
+
+```sh
+node data/validate-ingredient-lines.mjs --write-checksum
+```
+
+and change the four parsers and copy **both files together** into the other
+three repos, each with its parser change:
+
+| Repo | Path |
+|---|---|
+| `dugcanlift-kit-android` | `liftcore/src/test/resources/fixtures/ingredient-lines.json` |
+| `dugcanlift-coach` | `coach/fixtures/ingredient-lines.json` |
+| `dugcanlift-site` | `lift/fixtures/ingredient-lines.json` |
+
+(`dugcanlift-site/coach/fixtures/` is a fourth copy, written by `deploy.sh` in
+`dugcanlift-coach`; nobody edits it.) Each repo's test asserts its copy hashes
+to the `.sha256` beside it, so a copy taken without the checksum fails there.

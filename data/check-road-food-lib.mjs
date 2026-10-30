@@ -10,7 +10,7 @@
 export const FIELDS = ["kcal", "proteinG", "fatG", "carbsG", "fiberG", "saturatedFatG", "sugarG", "sodiumMg"];
 
 const LABEL = {
-  kcal: "kcal", proteinG: "protein g", fatG: "fat g", carbsG: "carbs g", fiberG: "fibre g",
+  kcal: "kcal", proteinG: "protein g", fatG: "fat g", carbsG: "carbs g", fiberG: "fiber g",
   saturatedFatG: "sat fat g", sugarG: "sugar g", sodiumMg: "sodium mg",
 };
 

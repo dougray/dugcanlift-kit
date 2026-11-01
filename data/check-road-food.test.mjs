@@ -407,7 +407,7 @@ test("the report lists each verdict, every differing number, staleness and the v
   assert.match(md, /\*\*1 changed, 1 couldn't reach, 1 can't compare automatically, 1 unchanged\.\*\*/);
   assert.match(md, /\| Burgers \| CHANGED \| 2026-09-20 \| 1 of 1 \|/);
   assert.match(md, /- kcal: 560 → 570/);
-  assert.match(md, /- fibre g: blank → 2/);
+  assert.match(md, /- fiber g: blank → 2/);
   assert.match(md, /Couldn't reach: example\.com: HTTP 403/);
   assert.match(md, /Document changed since it was checked: re-read by hand/);
   assert.match(md, /- Old Chain: checked 2025-01-01/);

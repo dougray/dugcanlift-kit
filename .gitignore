@@ -6,3 +6,10 @@
 
 # Road Food refresh check: the chains' own documents, fetched locally, never committed
 data/.road-food-cache/
+
+# Secrets: never commit env files (examples and templates stay tracked)
+.env
+.env.*
+*.env
+!.env.example
+!.env.template

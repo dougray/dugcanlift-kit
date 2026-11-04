@@ -2,10 +2,20 @@
 // Road Food refresh check. For every chain in road-food.json, fetch the source
 // SOURCES.md says its numbers were read from, read the bundled items back out
 // of it where the source is machine-readable, and report what moved. It also
-// checks every snack against FoodData Central and re-runs the validator.
+// checks every snack against USDA FoodData Central's Branded Foods bulk file
+// and re-runs the validator.
 //
 //   node data/check-road-food.mjs            full run, writes data/road-food-CHECK.md
 //   node data/check-road-food.mjs --offline  re-read cached documents only, no network
+//   ... --fdc-branded <zip>                  also compare the snacks, against USDA's
+//                                            FoodData_Central_branded_food_csv_<date>.zip
+//
+// The snacks need that zip, given as a local path (or FDC_BRANDED_ZIP). The
+// check never downloads it: it is several hundred MB, and fetching it is the
+// one manual step of the quarterly refresh (data/README.md). It is read in
+// place, streamed member by member, never unpacked. Without it the snacks are
+// "not compared", which does not fail the run. No source here needs an API
+// key, and none ever may (road-food-SOURCES.md, ground rules).
 //
 // It NEVER edits road-food.json. "A wrong number in someone's day is worse than
 // an old one they can see is old": a human re-reads the source and edits the
@@ -21,21 +31,20 @@
 // (If-None-Match / If-Modified-Since) reuse the cached copy when the server
 // says nothing changed. Raw documents are kept in data/.road-food-cache/,
 // which is gitignored: they are the chains' own files.
-//
-// Env: FDC_API_KEY (default DEMO_KEY, which allows about 10 requests an hour;
-// a run makes 4).
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
   FIELDS, compareItem, modificationSaving, findPdfRow, parseChickFilA, findChickFilARow,
-  parseStarbucks, wendysRequest, parseWendysNutrition, deriveSnack, newerFdcRecords, fdcDate,
+  parseStarbucks, wendysRequest, parseWendysNutrition,
   parseNutritionixGrid, findNutritionixRow, embedsWidget,
   isStale, modifiedAfter, chainVerdict, exitCode, renderReport, renderSummary, statesPublished,
+  BRANDED_COLUMNS, readBrandedFoods, brandedRelease, checkSnacks,
 } from "./check-road-food-lib.mjs";
+import { listZip, zipEntryChunks } from "./read-zip.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CACHE = join(HERE, ".road-food-cache");
@@ -46,6 +55,24 @@ const TIMEOUT_MS = 45_000;
 const SLOW_PAGE_TIMEOUT_MS = 180_000;
 const PAUSE_MS = 1_000;
 const OFFLINE = process.argv.includes("--offline");
+
+// The Branded Foods zip: --fdc-branded <zip>, --fdc-branded=<zip>, or FDC_BRANDED_ZIP.
+function brandedZipPath() {
+  const args = process.argv.slice(2);
+  const eq = args.find((a) => a.startsWith("--fdc-branded="));
+  if (eq) return eq.slice("--fdc-branded=".length);
+  const i = args.indexOf("--fdc-branded");
+  if (i >= 0) {
+    const v = args[i + 1];
+    if (!v || v.startsWith("--")) {
+      console.error("--fdc-branded needs the path of USDA's FoodData_Central_branded_food_csv_<date>.zip");
+      process.exit(1);
+    }
+    return v;
+  }
+  return process.env.FDC_BRANDED_ZIP || undefined;
+}
+const BRANDED_ZIP = brandedZipPath();
 
 const bundle = JSON.parse(readFileSync(join(HERE, "road-food.json"), "utf8"));
 const locators = JSON.parse(readFileSync(join(HERE, "road-food-locators.json"), "utf8"));
@@ -105,7 +132,7 @@ async function get(url, { method = "GET", body, headers = {}, timeoutMs = TIMEOU
     return { error: `${new URL(url).host}: ${whyFailed(e)} while reading the body` };
   }
   const meta = {
-    url: url.replace(/api_key=[^&]+/, "api_key=…"), fetchedAt: new Date().toISOString(), status: res.status,
+    url, fetchedAt: new Date().toISOString(), status: res.status,
     etag: res.headers.get("etag") ?? undefined,
     lastModified: res.headers.get("last-modified") ?? undefined,
     contentType: res.headers.get("content-type") ?? undefined,
@@ -351,46 +378,25 @@ async function checkChain(chain) {
   return r;
 }
 
-// FoodData Central, by fdcId, 20 per request (the API's batch limit). The
-// abridged format carries nutrient numbers; the full one carries serving size
-// and the update log.
-async function checkSnacks(snacks) {
-  const key = process.env.FDC_API_KEY || "DEMO_KEY";
-  const r = { id: "snacks", name: "Snacks (FoodData Central)", checkedOn: snacks.map((s) => s.checkedOn).sort()[0],
-    items: [], signals: [], unreachable: [] };
-  const byId = new Map();
-  for (let i = 0; i < snacks.length; i += 20) {
-    const ids = snacks.slice(i, i + 20).map((s) => s.fdcId);
-    for (const format of ["abridged", "full"]) {
-      // The key is a query parameter, so it never reaches the cache key or the report.
-      const url = "https://api.nal.usda.gov/fdc/v1/foods";
-      const doc = await get(`${url}?api_key=${key}`, {
-        method: "POST", body: JSON.stringify({ fdcIds: ids, format }), headers: { "Content-Type": "application/json" },
-      });
-      if (doc.error) { r.unreachable.push(doc.error.replace(key, "…")); continue; }
-      let list;
-      try { list = JSON.parse(doc.body.toString("utf8")); } catch { r.unreachable.push("FDC: response is not JSON"); continue; }
-      for (const f of list) byId.set(`${format}:${f.fdcId}`, f);
+// USDA FoodData Central's Branded Foods bulk file, read in place. The four
+// CSVs the check needs are found by file name wherever they sit in the zip.
+async function readBrandedZip(path, snacks) {
+  const file = basename(path);
+  const release = brandedRelease(file);
+  try {
+    if (!statSync(path).isFile()) return { error: "not a file", file };
+    const entries = await listZip(path);
+    const member = {};
+    for (const name of Object.keys(BRANDED_COLUMNS)) {
+      const hits = entries.filter((e) => e.name.split("/").pop() === name);
+      if (hits.length !== 1) return { error: `expected one ${name} in the zip, found ${hits.length}`, file };
+      member[name] = hits[0];
     }
+    const { records, byBarcode } = await readBrandedFoods((name) => zipEntryChunks(path, member[name]), snacks);
+    return { records, byBarcode, file, release };
+  } catch (e) {
+    return { error: e.code === "ENOENT" ? "no such file" : e.message, file };
   }
-  if (r.unreachable.length) r.items = snacks.map((s) => ({ id: s.id, name: s.name, error: "FDC not reached" }));
-  else {
-    r.signals.push("Each product is re-derived from its FDC record (per-100 g figure x serving, then FDA label rounding), and its update log is checked for a newer record of the same product.");
-    r.items = snacks.map((s) => {
-      const base = { id: s.id, name: s.name };
-      const ab = byId.get(`abridged:${s.fdcId}`), full = byId.get(`full:${s.fdcId}`);
-      if (!ab || !full) return { ...base, missing: `FDC no longer returns record ${s.fdcId}` };
-      const d = deriveSnack(ab, full);
-      if (d.error) return { ...base, missing: d.error };
-      const diffs = compareItem(s, d.values);
-      const newer = newerFdcRecords(full);
-      for (const n of newer) diffs.push({ field: "fdcId", label: "newer FDC record for this product", old: `${s.fdcId} (${fdcDate(full.publicationDate)})`, now: `${n.fdcId} (${n.published})` });
-      if (full.discontinuedDate) diffs.push({ field: "discontinued", label: "discontinued", old: "no", now: full.discontinuedDate });
-      return { ...base, compared: true, diffs };
-    });
-  }
-  r.verdict = chainVerdict(r);
-  return r;
 }
 
 // ------------------------------------------------------------------ run
@@ -401,8 +407,9 @@ for (const chain of bundle.chains) {
   process.stderr.write(`checking ${chain.name}…\n`);
   results.push(await checkChain(chain));
 }
-process.stderr.write("checking snacks…\n");
-results.push(await checkSnacks(bundle.snacks));
+if (BRANDED_ZIP) process.stderr.write(`checking snacks against ${basename(BRANDED_ZIP)} (every row is read)…\n`);
+else process.stderr.write("snacks not compared: no Branded Foods zip given (--fdc-branded <zip>)\n");
+results.push(checkSnacks(bundle.snacks, BRANDED_ZIP ? await readBrandedZip(BRANDED_ZIP, bundle.snacks) : undefined));
 
 const stale = [
   ...bundle.chains.filter((c) => isStale(c.checkedOn, today)).map((c) => ({ name: c.name, checkedOn: c.checkedOn })),

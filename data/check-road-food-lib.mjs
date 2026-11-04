@@ -334,7 +334,9 @@ const FDC_NUTRIENTS = {
 
 // `abridged` supplies per-100 values by nutrient number; `full` supplies the
 // serving size, the discontinued date and the update log (every record FDC
-// holds for the same product, newest first).
+// holds for the same product, newest first). These are the shapes FDC's API
+// returned; `readBrandedFoods` builds the same two from USDA's bulk CSVs, so
+// the derivation itself did not change when the API was dropped.
 export function deriveSnack(abridged, full) {
   const serving = full?.servingSize;
   if (typeof serving !== "number" || serving <= 0) return { error: "the FDC record has no serving size" };
@@ -349,8 +351,10 @@ export function deriveSnack(abridged, full) {
   return { values };
 }
 
-// FDC dates are M/D/YYYY.
+// FDC's API wrote dates M/D/YYYY; its bulk CSVs write YYYY-MM-DD.
 export function fdcDate(s) {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s ?? "");
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s ?? "");
   return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : undefined;
 }
@@ -362,6 +366,281 @@ export function newerFdcRecords(full) {
   return (full?.foodUpdateLog ?? [])
     .filter((r) => r.fdcId !== full.fdcId && mine && fdcDate(r.publicationDate) > mine)
     .map((r) => ({ fdcId: r.fdcId, published: fdcDate(r.publicationDate), description: r.description }));
+}
+
+// ------------------------------------------ FoodData Central bulk CSVs
+
+// USDA's Branded Foods download (FoodData_Central_branded_food_csv_<date>.zip,
+// public domain, no key) is a set of CSVs. The check reads four, by column
+// name, so a column USDA adds or reorders changes nothing. The names are the
+// ones USDA's "Download Field Descriptions" gives:
+//
+//   nutrient.csv       id, nutrient_nbr: food_nutrient's nutrient_id is
+//                      nutrient.id, and the API's "number" was nutrient_nbr
+//   branded_food.csv   fdc_id, gtin_upc, serving_size, serving_size_unit,
+//                      discontinued_date
+//   food.csv           fdc_id, description, publication_date
+//   food_nutrient.csv  fdc_id, nutrient_id, amount (per 100 g or 100 ml)
+export const BRANDED_COLUMNS = {
+  "nutrient.csv": ["id", "nutrient_nbr"],
+  "branded_food.csv": ["fdc_id", "gtin_upc", "serving_size", "serving_size_unit", "discontinued_date"],
+  "food.csv": ["fdc_id", "description", "publication_date"],
+  "food_nutrient.csv": ["fdc_id", "nutrient_id", "amount"],
+};
+
+// One CSV record, starting at `i`. Returns [fields, next], or null when the
+// text ends before the record does and more may follow. RFC 4180: a quoted
+// field may hold commas, newlines and "" for a quote.
+function csvRecord(s, i, final) {
+  const fields = [];
+  const n = s.length;
+  for (;;) {
+    let value = "";
+    if (i < n && s.charCodeAt(i) === 34) {
+      let j = i + 1;
+      for (;;) {
+        const q = s.indexOf('"', j);
+        if (q < 0 || (q + 1 >= n && !final)) return null;
+        if (s.charCodeAt(q + 1) === 34) { value += s.slice(j, q + 1); j = q + 2; continue; }
+        value += s.slice(j, q);
+        i = q + 1;
+        break;
+      }
+    }
+    // Unquoted text, or anything stray after a closing quote, runs to the
+    // next delimiter.
+    let j = i;
+    while (j < n) {
+      const c = s.charCodeAt(j);
+      if (c === 44 || c === 10 || c === 13) break;
+      j++;
+    }
+    if (j >= n && !final) return null;
+    value += s.slice(i, j);
+    fields.push(value);
+    i = j;
+    if (i >= n) return [fields, i];
+    const c = s.charCodeAt(i);
+    if (c === 44) { i++; continue; }
+    if (c === 13) {
+      if (i + 1 >= n && !final) return null;
+      return [fields, s.charCodeAt(i + 1) === 10 ? i + 2 : i + 1];
+    }
+    return [fields, i + 1];
+  }
+}
+
+// Every record of a CSV, from an iterable (or async iterable) of Buffer or
+// string chunks, as arrays of strings. A blank line is skipped, and a byte
+// order mark is dropped. A chunk boundary can fall anywhere, including inside
+// a UTF-8 character or a quoted field.
+export async function* csvRows(chunks) {
+  const decoder = new TextDecoder("utf-8");
+  let buf = "";
+  let first = true;
+  const drain = (final) => {
+    const out = [];
+    let i = 0;
+    while (i < buf.length) {
+      const r = csvRecord(buf, i, final);
+      if (!r) break;
+      i = r[1];
+      if (r[0].length === 1 && r[0][0] === "") continue;
+      out.push(r[0]);
+    }
+    buf = buf.slice(i);
+    return out;
+  };
+  for await (const chunk of chunks) {
+    buf += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
+    if (first && buf.length) {
+      if (buf.charCodeAt(0) === 0xfeff) buf = buf.slice(1);
+      first = false;
+    }
+    yield* drain(false);
+  }
+  buf += decoder.decode();
+  if (first && buf.charCodeAt(0) === 0xfeff) buf = buf.slice(1);
+  yield* drain(true);
+}
+
+// Calls `fn` with an object of the `needed` columns for every row, after
+// checking the header names every one of them. `keep(value)` filters on the
+// first needed column before an object is built, which keeps reading
+// food_nutrient.csv's millions of rows for 22 products cheap.
+async function eachRow(name, chunks, needed, fn, keep) {
+  let idx;
+  for await (const row of csvRows(chunks)) {
+    if (!idx) {
+      idx = needed.map((c) => row.indexOf(c));
+      const missing = needed.filter((_, k) => idx[k] < 0);
+      if (missing.length) throw new Error(`${name} has no ${missing.join(", ")} column (its header: ${row.join(", ")})`);
+      continue;
+    }
+    if (keep && !keep(row[idx[0]] ?? "")) continue;
+    const o = {};
+    needed.forEach((c, k) => { o[c] = row[idx[k]] ?? ""; });
+    fn(o);
+  }
+  if (!idx) throw new Error(`${name} is empty`);
+}
+
+// A barcode as one key: digits only, leading zeros dropped, so FDC's UPC-A,
+// EAN-13 and GTIN-14 spellings of one product match ("normalise when
+// matching", SOURCES.md "Snacks").
+export function gtinKey(code) {
+  const d = String(code ?? "").replace(/[\s-]/g, "");
+  if (!/^\d+$/.test(d)) return undefined;
+  return d.replace(/^0+/, "") || undefined;
+}
+
+// "208", "208.0" and " 208" are one nutrient number; "269.3" is another.
+const nutrientNumber = (s) => {
+  const t = String(s ?? "").trim();
+  return /^\d+(\.\d+)?$/.test(t) ? String(Number(t)) : t;
+};
+const csvNumber = (s) => {
+  const t = String(s ?? "").trim();
+  if (!t) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+// Reads the records the check needs out of the bulk CSVs.
+//
+// `open(fileName)` gives that CSV's chunks (from the zip, or a fixture), and
+// may be called more than once for a file. `snacks` are the bundle's entries:
+// their `fdcId`s, and their `barcode`s for finding other records of the same
+// product.
+//
+// Returns { records, byBarcode }. `records` maps each fdcId the file holds to
+// { abridged, full }, the shapes `deriveSnack` and `newerFdcRecords` read.
+// `full.foodUpdateLog` is every record in the file with the same product's
+// GTIN, newest first: USDA's field descriptions say "Duplicate codes signify
+// an update to the product, use the publication_date found in the food table
+// to distinguish when each update was published". `byBarcode` maps each
+// bundled barcode's key to the records the file holds for it, which is what a
+// snack whose own record is gone is reported with.
+export async function readBrandedFoods(open, snacks) {
+  const nbr = new Map();
+  await eachRow("nutrient.csv", open("nutrient.csv"), BRANDED_COLUMNS["nutrient.csv"],
+    (r) => nbr.set(r.id.trim(), nutrientNumber(r.nutrient_nbr)));
+
+  const targets = new Set(snacks.map((s) => String(s.fdcId)));
+  const keys = new Set(snacks.map((s) => gtinKey(s.barcode)).filter(Boolean));
+  const branded = new Map();
+  const readBranded = (wantKeys) => eachRow("branded_food.csv", open("branded_food.csv"),
+    BRANDED_COLUMNS["branded_food.csv"], (r) => {
+      const id = r.fdc_id.trim();
+      if (targets.has(id) || wantKeys.has(gtinKey(r.gtin_upc))) branded.set(id, r);
+    });
+  await readBranded(keys);
+  // A record whose own GTIN is not the barcode the bundle records needs a
+  // second pass to find its product's other records. None is expected.
+  const extra = new Set([...targets].map((id) => gtinKey(branded.get(id)?.gtin_upc)).filter((k) => k && !keys.has(k)));
+  if (extra.size) {
+    await readBranded(extra);
+    for (const k of extra) keys.add(k);
+  }
+
+  const food = new Map();
+  await eachRow("food.csv", open("food.csv"), BRANDED_COLUMNS["food.csv"],
+    (r) => food.set(r.fdc_id.trim(), r), (id) => branded.has(id.trim()));
+
+  const nutrients = new Map();
+  await eachRow("food_nutrient.csv", open("food_nutrient.csv"), BRANDED_COLUMNS["food_nutrient.csv"], (r) => {
+    const number = nbr.get(r.nutrient_id.trim());
+    const amount = csvNumber(r.amount);
+    if (number === undefined || amount === undefined) return;
+    const id = r.fdc_id.trim();
+    if (!nutrients.has(id)) nutrients.set(id, []);
+    nutrients.get(id).push({ number, amount });
+  }, (id) => targets.has(id.trim()));
+
+  const entry = (id) => {
+    const b = branded.get(id), f = food.get(id);
+    return { fdcId: Number(id), description: f?.description, publicationDate: f?.publication_date.trim() || undefined,
+      gtinUpc: b.gtin_upc, discontinuedDate: b.discontinued_date.trim() || undefined };
+  };
+  const newestFirst = (a, b) => (fdcDate(b.publicationDate) ?? "").localeCompare(fdcDate(a.publicationDate) ?? "")
+    || b.fdcId - a.fdcId;
+  const byBarcode = new Map();
+  for (const id of branded.keys()) {
+    const k = gtinKey(branded.get(id).gtin_upc);
+    if (!k || !keys.has(k)) continue;
+    if (!byBarcode.has(k)) byBarcode.set(k, []);
+    byBarcode.get(k).push(entry(id));
+  }
+  for (const list of byBarcode.values()) list.sort(newestFirst);
+
+  const records = new Map();
+  for (const id of targets) {
+    const b = branded.get(id);
+    if (!b) continue;
+    records.set(Number(id), {
+      abridged: { fdcId: Number(id), foodNutrients: nutrients.get(id) ?? [] },
+      full: { ...entry(id), servingSize: csvNumber(b.serving_size), servingSizeUnit: b.serving_size_unit.trim() || undefined,
+        foodUpdateLog: byBarcode.get(gtinKey(b.gtin_upc)) ?? [] },
+    });
+  }
+  return { records, byBarcode };
+}
+
+// The release date in USDA's own file name, FoodData_Central_branded_food_csv_<date>.zip.
+export function brandedRelease(fileName) {
+  return /branded_food_csv_(\d{4}-\d{2}-\d{2})/.exec(fileName ?? "")?.[1];
+}
+
+// One snack against its record in the bulk file.
+export function compareSnack(snack, record, byBarcode = new Map()) {
+  const base = { id: snack.id, name: snack.name };
+  if (!record) {
+    const others = byBarcode.get(gtinKey(snack.barcode)) ?? [];
+    const also = others.length
+      ? `; the file holds ${others.length} record(s) with its barcode ${snack.barcode}: ${others.map((o) =>
+        `${o.fdcId} (${fdcDate(o.publicationDate) ?? "no date"}${o.discontinuedDate ? `, discontinued ${o.discontinuedDate}` : ""})`).join(", ")}`
+      : "";
+    return { ...base, missing: `record ${snack.fdcId} is not in the Branded Foods file${also}` };
+  }
+  const d = deriveSnack(record.abridged, record.full);
+  if (d.error) return { ...base, missing: d.error };
+  const full = record.full;
+  const diffs = compareItem(snack, d.values);
+  for (const n of newerFdcRecords(full)) {
+    diffs.push({ field: "fdcId", label: "newer FDC record for this product", old: `${snack.fdcId} (${fdcDate(full.publicationDate)})`, now: `${n.fdcId} (${n.published})` });
+  }
+  if (full.discontinuedDate) diffs.push({ field: "discontinued", label: "discontinued", old: "no", now: full.discontinuedDate });
+  const notes = [];
+  if (!fdcDate(full.publicationDate)) notes.push("food.csv gives this record no publication date, so newer records were not looked for");
+  return { ...base, compared: true, diffs, notes };
+}
+
+// The snacks' result, in the same shape as a chain's.
+//   bulk undefined   no file given: "can't compare automatically", which does not fail the run
+//   bulk { error }   a file was given and could not be read: fails the run
+//   bulk { records, byBarcode, file?, release? }
+export function checkSnacks(snacks, bulk) {
+  const r = { id: "snacks", name: "Snacks (FoodData Central)", checkedOn: snacks.map((s) => s.checkedOn).sort()[0],
+    items: [], signals: [], unreachable: [] };
+  if (!bulk) {
+    r.manual = true;
+    r.manualWhy = "no USDA Branded Foods CSV zip was given (`--fdc-branded <zip>` or `FDC_BRANDED_ZIP`); data/README.md, \"Quarterly refresh\", says where to get it";
+    r.manualNote = "Not compared: no USDA Branded Foods file given";
+    r.items = snacks.map((s) => ({ id: s.id, name: s.name, error: "no Branded Foods file given" }));
+  } else if (bulk.error) {
+    r.unreachable.push(`couldn't read ${bulk.file ?? "the Branded Foods file"}: ${bulk.error}`);
+    r.items = snacks.map((s) => ({ id: s.id, name: s.name, error: "Branded Foods file not read" }));
+  } else {
+    r.signals.push(`Read from USDA's Branded Foods bulk file${bulk.file ? ` ${bulk.file}` : ""}${bulk.release ? ` (release ${bulk.release})` : ""}; no API, no key.`);
+    r.signals.push("Each product is re-derived from its FDC record (per-100 g figure x serving, then FDA label rounding), and the file is searched for a newer record with the same GTIN.");
+    const newest = snacks.map((s) => s.checkedOn).sort().at(-1);
+    if (bulk.release && newest && bulk.release < newest) {
+      r.signals.push(`**This release (${bulk.release}) is older than the newest snack checkedOn (${newest})**: USDA refreshes the bulk file twice a year, so a difference may be the file's age rather than the product's. Use the newest release.`);
+    }
+    r.items = snacks.map((s) => compareSnack(s, bulk.records.get(Number(s.fdcId)), bulk.byBarcode));
+  }
+  r.verdict = chainVerdict(r);
+  return r;
 }
 
 // ---------------------------------------------------------------- dates
@@ -467,6 +746,7 @@ export function exitCode(results, validator) {
 // ---------------------------------------------------------------- report
 
 function manualNote(r) {
+  if (r.manualNote) return r.manualNote;
   if (r.docChanged === true) return "**Document changed since it was checked: re-read by hand**";
   if (r.docChanged === false) return "Document not modified since it was checked (server's Last-Modified): nothing to re-read";
   return "Can't tell whether the document changed: re-read by hand";

@@ -8,6 +8,8 @@
 | `validate-road-food.mjs` | Shape and honesty checks on the JSON. |
 | `check-road-food.mjs` | The refresh check: have the chains' published numbers moved? |
 | `check-road-food-lib.mjs` | The check's reading, comparing and reporting, with no network (tested). |
+| `read-zip.mjs` | Streams one member out of a zip with Node's standard library, for USDA's Branded Foods file (tested). |
+| `fixtures/fdc-branded/` | Hand-written CSVs in USDA's Branded Foods layout, and two zips of them, for the snack tests. |
 | `road-food-locators.json` | Where each bundled item sits in its source: a PDF row, a grid row, a sales item id, a product number. |
 | `road-food-CHECK.md` | The last check's report. Overwritten each run. |
 
@@ -107,16 +109,21 @@ point.
 ## Refresh check
 
 ```sh
-node data/check-road-food.mjs     # fetches every source, writes data/road-food-CHECK.md
-node --test data/*.test.mjs       # unit tests, no network
+node data/check-road-food.mjs                    # fetches every chain's source, writes data/road-food-CHECK.md
+node data/check-road-food.mjs --fdc-branded ~/Downloads/fdc/FoodData_Central_branded_food_csv_2026-10-29.zip
+                                                 # the same, and the snacks too
+node --test data/*.test.mjs                      # unit tests, no network
 ```
+
+**No source needs an API key, and none may** (SOURCES.md, ground rules): a
+key, even a free or "demo" one, is an outside dependency that can be cut off.
 
 For each chain the check fetches the source SOURCES.md records, once, with a
 User-Agent naming the tool and a pause between requests. It never retries, and
 it never works around a refusal: a 403 is reported as "couldn't reach".
 Where the source can be read by machine (PDF text, the JSON embedded in
 Chick-fil-A's page, Wendy's and Starbucks' ordering APIs, the menu grid of the
-calculator Taco Bell's and Sheetz's own pages embed, FoodData Central) it
+calculator Taco Bell's and Sheetz's own pages embed, FoodData Central's bulk file) it
 reads each bundled item back out and compares every number. For a chain whose
 figures come from an embedded calculator it also re-reads the chain's own page
 and confirms the embed is still there, because that embed is the whole reason
@@ -150,8 +157,45 @@ curated with and what the row locators were written against. Elsewhere it falls
 back to `pdftotext`, whose line breaks may differ: a "row not found" there is
 worth a look on a Mac before believing it.
 
-FoodData Central uses `FDC_API_KEY` if set, otherwise `DEMO_KEY`, which allows
-only a few requests an hour. A run makes four.
+### Snacks: USDA's Branded Foods file
+
+The snacks are checked against USDA FoodData Central's **Branded Foods bulk
+download**, `FoodData_Central_branded_food_csv_<date>.zip`: public domain
+(CC0), no account and no key. The check is given it as a local path, with
+`--fdc-branded <zip>` or the `FDC_BRANDED_ZIP` environment variable. **It never
+downloads the file itself**: it is about 430 MB zipped and 3 GB unzipped, and
+fetching it is the one manual download of the quarterly refresh. With no file
+given, the snacks are reported "can't compare automatically", with that reason,
+and the run does not fail.
+
+The zip is read in place and never unpacked: `read-zip.mjs` streams each CSV
+out of it through Node's own `zlib`, with no dependency and no `unzip`, and
+checks each member's CRC-32 as it goes. Four CSVs are read, by column name:
+`nutrient.csv` (`id`, `nutrient_nbr`), `branded_food.csv` (`fdc_id`,
+`gtin_upc`, `serving_size`, `serving_size_unit`, `discontinued_date`),
+`food.csv` (`fdc_id`, `description`, `publication_date`) and
+`food_nutrient.csv` (`fdc_id`, `nutrient_id`, `amount`, per 100 g). Those are
+the names in USDA's "Download Field Descriptions", which ships inside each zip.
+Every row is read, so a run takes a while longer with the file than without it.
+
+For each snack the check finds its `fdcId`, re-derives the figures exactly as
+before (per-100 g amount × serving, to one decimal, then FDA label rounding),
+reports a `discontinued_date`, and looks for a **newer record of the same
+product**: another record with the same GTIN (leading zeros ignored) and a later
+`publication_date`, which is how USDA's field descriptions say an update shows
+in the file. An `fdcId` the file no longer holds is reported as changed, with
+any records the file does hold for the snack's barcode.
+
+What the bulk file cannot do that the API did:
+
+- **It is six months fresh, not one.** USDA publishes the Branded Foods download
+  twice a year (April and October), and the API was updated monthly. A label
+  resubmitted since the last release is not seen until the next one. Use the
+  newest release; the report says so when the file is older than a snack's
+  `checkedOn`.
+- **"Newer record" means "same GTIN, later date".** The API's update log was
+  FDC's own list of a product's history. The bulk file has no such list, so a
+  resubmission under a different barcode is not linked to the old record.
 
 ### When a chain or item is added
 
@@ -164,25 +208,31 @@ item was just read from the same source.
 Once a quarter (January, April, July, October), and before any release that
 ships the data:
 
-1. `node data/check-road-food.mjs`, then read `data/road-food-CHECK.md`.
-2. **Changed:** open the source, confirm each old → new figure by eye, and
+1. **Download USDA's Branded Foods CSV zip**, the one manual download: on
+   <https://fdc.nal.usda.gov/download-datasets/>, under "Branded", take the
+   newest CSV release (`FoodData_Central_branded_food_csv_<date>.zip`, about
+   430 MB). Put it in an empty directory of its own, outside the repo, and
+   don't unzip it.
+2. `node data/check-road-food.mjs --fdc-branded <that zip>`, then read
+   `data/road-food-CHECK.md`.
+3. **Changed:** open the source, confirm each old → new figure by eye, and
    update the item and the chain's `checkedOn`. An item that is gone from the
    source comes out of the file, or is replaced with one read the same way.
-3. **Couldn't reach:** try the source in a browser. If the chain moved its
+4. **Couldn't reach:** try the source in a browser. If the chain moved its
    document, find the new one on the chain's own site, update `source` and the
    locator, and record it in SOURCES.md. Don't bypass a block.
-4. **Can't compare automatically:** re-read the document by hand when the
+5. **Can't compare automatically:** re-read the document by hand when the
    report says it changed or can't tell. For QuikTrip, also confirm a
    quiktrip.com product page still links the recorded PDF: a new one would sit
    at a new address.
-5. **Over six months:** re-read and re-date, even if nothing moved; the apps
+6. **Over six months:** re-read and re-date, even if nothing moved; the apps
    say so in words. Note that re-dating fixes `checkedOn` only: a chain whose
    *document* is old stays old however often it is read, and the warning is
    meant to keep saying so.
-6. **Document date moved:** the check reports a chain whose document no longer
+7. **Document date moved:** the check reports a chain whose document no longer
    states the date `publishedOn` records, which means the chain republished.
    Re-read the document and its date by hand, and update both fields.
-7. `node data/validate-road-food.mjs --write-checksum`, then copy
+8. `node data/validate-road-food.mjs --write-checksum`, then copy
    `road-food.json` and `road-food.sha256` into each app repo together and
    ship the change with the apps like any other.
 

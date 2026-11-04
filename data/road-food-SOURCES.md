@@ -13,6 +13,16 @@ anyone's nutrition database searched on its own account. A chain whose current
 numbers could not be read from its own source is left out. Blank stays blank:
 a field the source doesn't give is omitted.
 
+**No API keys, ever (2026-11-04).** No source, for nutrition, allergens or
+snacks, and no step of the refresh check, may need an API key: not a key of our
+own, not a free registration, not a "public" demo key like FoodData Central's
+`DEMO_KEY`, and not a key printed in someone else's page. Doug's ruling: keep it
+"free and clear of outside dependancies as much as possible because they can
+always be cut off and make that feature un-usable then". A source a plain
+request cannot read is left out, or read by hand. The snack check was the one
+place that used a key; from 2026-11-04 it reads USDA's Branded Foods bulk file
+instead (see "Snacks").
+
 **On embedded calculators (2026-09-24).** Two chains publish their food
 nutrition only through a Nutritionix calculator embedded in their own
 nutrition page. Doug's call is that this is the chain's own published source:
@@ -142,7 +152,8 @@ published figure.
 - **Whataburger.** wbimageserver.whataburger.com is still the only Whataburger
   nutrition document that a request can reach; whataburger.com is a JavaScript
   shell and whataburger.com/files/Nutrition.pdf redirects into it. The ordering
-  API needs a key from the app bundle and was not touched.
+  API needs a key from the app bundle and was not touched; the 2026-11-04 "no
+  API keys" rule confirms it stays that way.
   - **The document says "Nutritional information as of March 29, 2021."** Five
     and a half years, so `publishedOn` is `2021-03-29` and every screen says
     "Published Mar 29, 2021". **This is the weakest link in the file.** Every
@@ -660,10 +671,13 @@ Why some items or chains are not stated:
   allergens from a CMS whose project id only a runtime flag service names. Not
   pursued.
 - **Whataburger**: the 2021 PDF has none; the site builds allergens from the keyed
-  ordering API, already ruled out.
+  ordering API, already ruled out, and the 2026-11-04 "no API keys" rule
+  confirms it.
 - **Chipotle**: its allergen chart loads from an API that answered 401 without a
   subscription key. The key is printed in a `<meta>` tag on the allergen page
-  itself. **Doug:** is one keyed request acceptable?
+  itself. **Doug's answer (2026-11-04): no**, under the "no API keys" rule.
+  Chipotle stays "none read" unless Chipotle publishes an allergen document a
+  plain request can read.
 - **Taco Bell**: its allergen widget lists only "free of X" filters behind a
   terms checkbox; a "contains" list would have to be inferred. Not done.
 - **Sheetz**: its embedded calculator has allergens switched off.
@@ -693,7 +707,10 @@ Calls made, for Doug to overturn:
 ## Snacks (22 products, 9 categories)
 
 Source: USDA FoodData Central, Branded Foods (public domain, CC0), searched
-through the FDC API on 2026-09-20/21. Each entry's `source` is its FDC page
+through the FDC API on 2026-09-20/21. From 2026-11-04 on, checks read USDA's
+Branded Foods bulk CSV download instead, which needs no key (see the ground
+rules, and `data/README.md` for what that file cannot tell the check that the
+API could). Each entry's `source` is its FDC page
 and `fdcId` is its id. `barcode` is FDC's `gtinUpc`, kept exactly as FDC
 stores it (some have a leading 0 or 00, some don't: normalise when matching
 scans). No Open Food Facts data was used.
@@ -760,6 +777,7 @@ changed for either.
 ## Refresh
 
 `node data/check-road-food.mjs` re-reads each source above and diffs it
-against the file; snack figures are re-derived from FDC by id. It writes
+against the file; snack figures are re-derived by id from USDA's Branded Foods
+bulk file, given with `--fdc-branded <zip>`. It writes
 `data/road-food-CHECK.md` and never updates the bundle. How to run it and the
 quarterly routine are in `data/README.md`.

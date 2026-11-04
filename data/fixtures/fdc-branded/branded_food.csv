@@ -1,0 +1,10 @@
+"fdc_id","brand_owner","brand_name","subbrand_name","gtin_upc","ingredients","not_a_significant_source_of","serving_size","serving_size_unit","household_serving_fulltext","branded_food_category","data_source","package_weight","modified_date","available_date","market_country","discontinued_date","preparation_state_code","trade_channel","short_description","material_code"
+"3001","Trail Meats Co.","Trail","","012345678905","BEEF, WATER, SUGAR, ""NATURAL"" FLAVORS,
+SALT (FOR FLAVOR)","","28","g","1 oz","Jerky & Dried Meat","GDSN","","2025-02-20","2025-03-01","United States","","","","",""
+"3002","Bar Works LLC","Bar Works","","098765432109","WHEY PROTEIN ISOLATE, ALMONDS, DATES","","60","g","1 bar","Protein Bars","LI","","2024-06-01","2024-06-12","United States","","","","",""
+"3003","Dairy Hollow Farms","Dairy Hollow","","00070000000027","PART-SKIM MOZZARELLA","","21","g","1 stick","Cheese","GDSN","","2026-06-01","2023-02-01","United States","2026-06-01","","","",""
+"3004","Orchard Nut Co.","Orchard","","0041570054161","ALMONDS, SEA SALT","","28","g","1 oz","Nuts","GDSN","","2023-09-20","2023-10-01","United States","","","","",""
+"3005","Orchard Nut Co.","Orchard","","41570054161","ALMONDS, SEA SALT","","28","g","1 oz","Nuts","GDSN","","2026-08-10","2026-08-20","United States","","","","",""
+"3006","Orchard Nut Co.","Orchard","","041570054161","ALMONDS, SALT","","28","GRM","1 oz","Nuts","LI","","2021-04-01","2021-05-01","United States","2023-10-01","","","",""
+"3007","Hearth & Field Foods","Hearth & Field","","0850000000014","OATS, HONEY","","40","g","1 bar","Granola Bars","LI","","2026-04-20","2026-05-01","United States","","","","",""
+"3008","Fizzco Beverages Inc.","Fizzco","","036000291452","CARBONATED WATER","","355","ml","1 can","Soda","GDSN","","2026-01-05","2026-01-15","United States","","","","",""

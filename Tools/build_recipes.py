@@ -23,7 +23,8 @@ carries its own `license` and `attribution` and the public-domain rows stay
 individually identifiable as public domain.
 
 The file as distributed is CC BY-SA 4.0 overall, because it contains BY-SA
-rows. LIFT and Coach are AGPL-3.0, so share-alike is already the house rule.
+rows. LIFT and Coach code is Apache-2.0, so the file stays separate from it and
+keeps its own share-alike terms.
 
 NUTRITION
 ---------

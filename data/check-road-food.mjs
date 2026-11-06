@@ -266,7 +266,19 @@ async function checkChickFilA(chain, loc, r) {
 // Nutritionix calculator their own nutrition page embeds. The chain's page is
 // the `source`, so the embed itself is checked first: without it the widget is
 // no longer the chain's own published figures and the entry has to be re-read.
+//
+// Jimmy John's does not embed the calculator: its site footer links to it, and
+// that footer is drawn by a JavaScript bundle whose name changes on every
+// deploy, so the link is in no HTML a plain request receives. Its locator names
+// a `footerLink` instead of an `embed`, and the check says plainly that it
+// cannot confirm the link, rather than reading the bundle or reporting a false
+// "no longer embeds".
 async function checkNutritionixGrid(chain, loc, r) {
+  if (loc.footerLink && !loc.embed) {
+    r.signals.push(`${new URL(chain.source).host} links ${loc.footerLink} from its site footer, which its JavaScript draws: `
+      + "**this check cannot confirm the link is still there.** Open the site and confirm it by hand.");
+    return readNutritionixGrid(chain, loc, r);
+  }
   const page = await get(chain.source, { timeoutMs: SLOW_PAGE_TIMEOUT_MS });
   if (page.error) r.signals.push(`Could not re-read ${new URL(chain.source).host} to confirm the embed: ${page.error}`);
   else if (embedsWidget(page.body.toString("utf8"), loc.embed)) {
@@ -274,6 +286,10 @@ async function checkNutritionixGrid(chain, loc, r) {
   } else {
     r.signals.push(`**${new URL(chain.source).host} no longer embeds ${loc.embed}**: the widget may no longer be what the chain publishes, so re-read the source by hand.`);
   }
+  return readNutritionixGrid(chain, loc, r);
+}
+
+async function readNutritionixGrid(chain, loc, r) {
   const doc = await get(loc.gridUrl);
   if (doc.error) { r.unreachable.push(doc.error); return; }
   const html = doc.body.toString("utf8");

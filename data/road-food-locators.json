@@ -272,6 +272,40 @@
       "method": "manual",
       "note": "The PDF is the nutritionUrl in jackinthebox.com's own page data, served from its Sanity CMS asset host under a content hash, so a replacement appears at a new address: each quarter, confirm jackinthebox.com still links this file. The chart says \"effective as of November 2026\", a month after it was read, so no publishedOn is recorded.",
       "why": "the PDF is one 18 x 24 in poster whose extracted text separates every label from its figures (the numbers come out in blocks with no names), so items were read by position from the rendered page; the check can only watch the document's bytes"
+    },
+    "jimmyjohns": {
+      "method": "nutritionix",
+      "footerLink": "restaurant.nutritionix.com/jimmy-johns/landing",
+      "gridUrl": "https://www.nutritionix.com/jimmy-johns/menu/premium",
+      "columns": ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "_", "proteinG"],
+      "note": "Jimmy John's does not embed the calculator; the \"Nutrition & Allergen Guide\" link under \"Our Menu\" in jimmyjohns.com's footer goes to restaurant.nutritionix.com/jimmy-johns/landing (Doug's ruling, 2026-11-05: a link the chain itself puts in its own footer counts as an embed does). The footer is drawn by the site's JavaScript bundle, whose file name changes on every deploy, so the check does not read it and cannot confirm the link: confirm it by hand each quarter. The landing page is a JavaScript loader; the figures are read from the same brand's server-rendered grid, which prints \"Last Updated\".",
+      "items": {
+        "jimmyjohns-slim-4-turkey-8-inch": { "row": "Slim 4 - Turkey (8\")" },
+        "jimmyjohns-slim-1-ham-provolone-8-inch": { "row": "Slim 1 - Ham & Provolone (8\")" },
+        "jimmyjohns-4-turkey-tom-8-inch": { "row": "#4 Turkey Tom® (8\")" },
+        "jimmyjohns-2-big-john-8-inch": { "row": "#2 Big John® (8\")" },
+        "jimmyjohns-5-vito-8-inch": { "row": "#5 Vito® (8\")" },
+        "jimmyjohns-14-bootlegger-club-8-inch": { "row": "#14 Bootlegger Club® (8\")" },
+        "jimmyjohns-10-hunters-club-8-inch": { "row": "#10 Hunter's Club® (8\")" },
+        "jimmyjohns-8-billy-club-8-inch": { "row": "#8 Billy Club® (8\")" },
+        "jimmyjohns-jj-gargantuan-8-inch": { "row": "The J.J. Gargantuan® (8\")" }
+      }
+    },
+    "caseys": {
+      "method": "pdf",
+      "columns": ["kcal", "fatG", "saturatedFatG", "_", "_", "sodiumMg", "carbsG", "fiberG", "sugarG", "proteinG"],
+      "note": "The PDF is on store.caseys.com, Casey's own second host (Doug's ruling, 2026-11-05); www.caseys.com answers a plain request with a Cloudflare challenge, so whether its nutrition page links this copy could not be seen. Section headings and the sliders' names are extracted at the foot of each page, after the rows they belong to, so the two slider rows are matched by position: the first and second \"per container (3 sliders)\" rows in the document are King's Hawaiian Ham & Swiss and Turkey & Cheddar on page 15 (confirmed on the rendered page). Pages 24-26 repeat items for converted CEFCO stores, some with other figures; every row here is the first match, on the standard-menu pages.",
+      "items": {
+        "caseys-chicken-tenders-4-ct": { "row": "Chicken Tenders 4 ct" },
+        "caseys-breaded-pork-sandwich": { "row": "Breaded Pork Sandwich per sandwich" },
+        "caseys-crispy-chicken-sandwich": { "row": "Crispy Chicken Sandwich per sandwich" },
+        "caseys-spicy-chicken-sandwich": { "row": "Spicy Chicken Sandwich per sandwich" },
+        "caseys-quarter-lb-cheeseburger": { "row": "1/4 Lb Cheeseburger per sandwich" },
+        "caseys-kings-hawaiian-ham-swiss-sliders-3": { "row": "per container (3 sliders)", "nth": 1 },
+        "caseys-kings-hawaiian-turkey-cheddar-sliders-3": { "row": "per container (3 sliders)", "nth": 2 },
+        "caseys-bacon-egg-cheese-croissant": { "row": "Bacon, Egg, Cheese Croissant per sandwich" },
+        "caseys-bacon-egg-cheese-biscuit": { "row": "Bacon, Egg, Cheese Biscuit per sandwich" }
+      }
     }
   }
 }

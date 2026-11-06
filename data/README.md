@@ -41,7 +41,7 @@ server's `Last-Modified`, which is when the file was uploaded. Not the upload
 path in the URL.
 
 **A document that states no date has no key.** Never a guess, never the day it
-was fetched. Eight of the nineteen chains are in this position and it is not a
+was fetched. Eight of the twenty-one chains are in this position and it is not a
 gap to fill: Wendy's, Starbucks and Chick-fil-A publish live pages that say
 nothing about themselves, the PDFs of QuikTrip, Love's and Pilot Flying J print
 no date, Sonic's says only "SUMMER 2026" — a season is not a month, and `2026`
@@ -123,11 +123,17 @@ User-Agent naming the tool and a pause between requests. It never retries, and
 it never works around a refusal: a 403 is reported as "couldn't reach".
 Where the source can be read by machine (PDF text, the JSON embedded in
 Chick-fil-A's page, Wendy's and Starbucks' ordering APIs, the menu grid of the
-calculator Taco Bell's and Sheetz's own pages embed, FoodData Central's bulk file) it
+calculator Taco Bell's and Sheetz's own pages embed or Jimmy John's footer links,
+FoodData Central's bulk file) it
 reads each bundled item back out and compares every number. For a chain whose
 figures come from an embedded calculator it also re-reads the chain's own page
 and confirms the embed is still there, because that embed is the whole reason
-the widget's figures count as the chain's own. Where it can't
+the widget's figures count as the chain's own. Jimmy John's does not embed its
+calculator: its site footer links to it, and that footer is drawn by a
+JavaScript bundle whose name changes on every deploy. The check does not read
+the bundle, so for Jimmy John's it reads the figures and the date but **cannot
+confirm the footer link**, says so in the report, and a person confirms it each
+quarter. Where it can't
 (QuikTrip's PDF, whose text interleaves rows), it reports whether the document
 changed since `checkedOn`, and says "re-read by hand" when it did or when it
 can't tell. It also gives each chain's `publishedOn`, how many months old that

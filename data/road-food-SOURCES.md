@@ -34,10 +34,25 @@ Sheetz it first re-reads the chain's own page and confirms the embed is still
 there, and says so in the report. If the chain drops the embed, the figures
 stop being the chain's own and the entry has to be re-read.
 
+**On a chain's footer link and its own second host (2026-11-05).** Two
+narrow rulings of Doug's, which brought Jimmy John's and Casey's into the file:
+
+1. **A link the chain itself puts in its own site's footer** to its Nutritionix
+   calculator counts as the chain's own published nutrition, as an embedded
+   calculator does. Jimmy John's footer links
+   `restaurant.nutritionix.com/jimmy-johns/landing`.
+2. **The chain's own second host counts**, as Burger King's RBI host does.
+   Casey's PDF is on `store.caseys.com`.
+
+They cover exactly that: a chain's own footer link, and a chain's own second
+host. They are not a step toward anything broader and are not extended to any
+other chain. Searching Nutritionix's database, an aggregator, or a host the
+chain does not own is still out.
+
 Raw copies of every page, PDF and JSON that was read were kept during curation.
 They are not committed, because they are the chains' own files.
 
-## Chains in the file (19 chains, 164 items)
+## Chains in the file (21 chains, 182 items)
 
 `Read on` is the chain's `checkedOn`; `publishedOn` is the date the document
 states about itself, blank when it states none. See "Published on" in
@@ -64,6 +79,8 @@ states about itself, blank when it states none. See "Published on" in
 | Culver's | burgers | 10 | The Nutritionix calculator embedded at https://www.culvers.com/nutrition-and-allergen-guide (an iframe of `r.nutritionix.com/culvers/landing`), whose menu grid is `www.nutritionix.com/culvers/menu/premium` | 2026-10-28 | 2026-10-16 | **"Last Updated: 10/16/2026"** above and below the grid |
 | Dunkin' | coffee | 8 | `DD_W7_nutrition_guide.pdf` on assets.ctfassets.net (Contentful), the "Nutrition Guide" link on https://www.dunkindonuts.com/nutrition/ | 2026-10-28 | 2026-09-21 | **"The information below was last updated on 09-21-2026."** at the head of both the Limited Time and Permanent sections |
 | Jack in the Box | burgers | 10 | PDF on cdn.sanity.io (`content-production/5cbdb27f...pdf`), the `nutritionUrl` in jackinthebox.com's own home-page data | 2026-10-28 | — | **"2026 NUTRITION FACTS"** as the title, and **"The ingredient and nutrient information contained in this analysis is effective as of November 2026."** - a month after it was read |
+| Jimmy John's | sandwiches | 9 | The Nutritionix calculator jimmyjohns.com's own footer links ("Nutrition & Allergen Guide", `restaurant.nutritionix.com/jimmy-johns/landing`), whose menu grid is `www.nutritionix.com/jimmy-johns/menu/premium` | 2026-11-05 | 2026-11-02 | **"Last Updated: 11/02/2026"** above and below the grid (it said 10/26/2026 when it was held for Doug on 2026-10-28) |
+| Casey's | gas-station-kitchen | 9 | https://store.caseys.com/media/cms/Nutrition-and-Ingredients.pdf (Casey's own second host; www.caseys.com is behind a Cloudflare challenge) | 2026-11-05 | 2026-11-04 | **"Updated 11/4/2026"** at the head of the nutrition pages and of the ingredients section (it said 9/30/2026 when held on 2026-10-28). The server's Last-Modified is 2026-11-03, which is not the document speaking |
 
 The exact `source` URL for each chain is in the JSON.
 
@@ -72,7 +89,8 @@ read each row from that raw text, then re-check every value against its row
 with a script. For embedded or API JSON: read the values directly. Every item
 was also checked for energy (4P + 4C + 9F against kcal). All are within about
 5%, except Popeyes' Signature Chicken Breast, which is 12% under but is the
-published figure.
+published figure, Jack in the Box's milk (7% under), and Casey's King's
+Hawaiian Turkey & Cheddar Sliders (5.2% under); see their notes.
 
 ### Per-chain notes and doubts
 
@@ -584,6 +602,125 @@ published figure.
   - Energy check: the other nine within 3.8% (Southwest Salad 301 vs 290).
   - The PDF sits under a Sanity content hash, so a replacement appears at a new address:
     each quarter, confirm the home page's `nutritionUrl` still names this file.
+- **Jimmy John's** (read fresh 2026-11-05; nothing was carried over from the
+  2026-10-28 curation that held it). In under Doug's footer-link ruling (ground
+  rules, above).
+  - **How the source was found.** One plain request for https://www.jimmyjohns.com/
+    (200, 11,152 bytes): a JavaScript shell whose HTML names no nutrition page.
+    One request for its main bundle, `/assets/index-Cb-boqRI.js` (200, 777,208
+    bytes), to see the footer: under "Our Menu" it links "Nutrition & Allergen
+    Guide" to `https://restaurant.nutritionix.com/jimmy-johns/landing` (and an
+    "Ingredient Guide" to Nutritionix's ingredient search, which was not used).
+    That footer link is the provenance, recorded as an embed is: `source` is
+    the chain's own site, and the locator's `footerLink` names the calculator.
+  - **The check cannot confirm the footer link.** The bundle's file name changes
+    on every deploy, so the check does not read it, and the link is in no HTML a
+    plain request receives. For this chain the check says so in the report
+    instead of confirming an embed (`footerLink` in the locator,
+    `checkNutritionixGrid` in `check-road-food.mjs`), and a person confirms the
+    footer each quarter. It still reads every figure and the date.
+  - **How it was read.** The landing page (200, 4,198 bytes) is a JavaScript
+    loader with no figures in it. The figures were read from the same brand's
+    server-rendered grid, `www.nutritionix.com/jimmy-johns/menu/premium` (200,
+    211,623 bytes), through the repo's own `parseNutritionixGrid` /
+    `findNutritionixRow`, exactly as Culver's were; every figure matches. Columns,
+    left to right: Calories, Total Fat, Saturated Fat, Trans Fat, Cholesterol,
+    Sodium, Total Carbohydrates, Dietary Fiber, Total Sugars, Added Sugars,
+    Protein (Taco Bell's eleven).
+  - **Not cross-checked against the loader's data file**, unlike Culver's. The
+    request for the calculator's `menu-latest.json.gz` was refused by this
+    session's own permission check and was not made another way. So that the
+    grid and the footer's calculator serve the same figures is the Culver's
+    assumption (same brand slug, same widget), not something seen here.
+    **Doug: confirm the grid counts as the calculator the footer links.**
+  - **publishedOn is the grid's "Last Updated: 11/02/2026"**, printed above and
+    below it. The loader is JS-only, so whether it prints the same date could not
+    be seen.
+  - **Sections avoided:** "Limited Time" (the Picklewiches, Chicken Parmesan, the
+    BBQ Brisket and Meatball Marinara subs) and "Preview" (the gyros, Jelly of the
+    Month and the rest). Every item in the file is from Favorites, Originals,
+    Gargantuan or Plain Slims, all 8-inch.
+  - **Servings are "1 8-inch sandwich" and no more.** The grid names the size and
+    publishes no weight and no build; its disclaimer says the values "are
+    estimated based on our standard serving portions". The Slims are the "Plain
+    Slims" section; the serving text does not claim what is on one.
+  - **No Unwich.** The lettuce-wrap option has no row anywhere on the grid, so it
+    has no published figure.
+  - **Dropped for "< 1" in a carried column:** Slim 2 - Roast Beef (8") and
+    Slim 6 - Provolone (8"), sugar. Many 16-inch rows print "< 1" for added
+    sugar, which is not carried; the 16-inch sandwiches were not picked anyway,
+    being two meals.
+  - Not picked, all clean: the Little Johns (6.5-inch, 10-16 g protein), the
+    wraps (36-44 g protein for 810-890 kcal), the toasted sandwiches (920-1,140
+    kcal) and the remaining Favorites.
+  - Sodium is high: the J.J. Gargantuan is 3,960 mg, the Billy Club 2,350 mg,
+    the Hunter's Club 2,120 mg.
+  - Energy check: all nine within 2.6% (Slim 4 - Turkey, 400 vs 410).
+  - No modifications: the grid publishes no build to subtract from.
+  - `®` is dropped from the names and kept in the locators, as Whataburger's are.
+    Ids carry the menu number (`jimmyjohns-14-bootlegger-club-8-inch`).
+  - **Allergens: none read.** The grid's page carries no allergen statement (its
+    allergen list is empty); the allergen guide is inside the footer's JavaScript
+    calculator, whose data file was not read (above). Left off, as Taco Bell and
+    Sheetz are.
+- **Casey's** (read fresh 2026-11-05). In under Doug's second-host ruling
+  (ground rules, above).
+  - **www.caseys.com is still behind a Cloudflare challenge.** One plain request
+    for https://www.caseys.com/nutrition: HTTP 403, `cf-mitigated: challenge`,
+    "Just a moment...". Not bypassed. So whether Casey's nutrition page links the
+    store.caseys.com copy today still could not be seen, and nor could the claim
+    from the 2026-10-28 curation that the www copy differs.
+  - **The PDF.** One plain request for
+    https://store.caseys.com/media/cms/Nutrition-and-Ingredients.pdf: 200,
+    application/pdf, 1,261,872 bytes, 46 pages, Last-Modified 2026-11-03. Pages
+    1-33 are nutrition, pages 34-46 are "Ingredients / Allergens / May Contain".
+  - **publishedOn is `2026-11-04`**, from the printed "Updated 11/4/2026" at the
+    head of page 1 and of page 34. The server's Last-Modified is a day earlier;
+    that is not the document speaking.
+  - **How it was read.** PDFKit text, each row read through the repo's own
+    `findPdfRow` with the locator, and each value then compared by eye with the
+    rendered pages (10, 13 and 15). All nine match. Columns, left to right:
+    Calories, Total Fat, Saturated Fat, Trans Fat, Cholesterol, Sodium,
+    Carbohydrates, Dietary Fiber, Sugar, Protein (Sonic's and Culver's ten).
+  - **Section headings and some item names are extracted at the foot of each
+    page**, after the rows they belong to, and a row whose name sits in a merged
+    cell comes out with no name at all ("per container (3 sliders) 490 ..."). So
+    the two slider rows are matched by position: the first and second "per
+    container (3 sliders)" rows in the document are Ham & Swiss and Turkey &
+    Cheddar on page 15, in that order on the rendered page.
+  - Items come from "Warmer Items - Lunch/Dinner" (p10), "Warmer Items -
+    Breakfast" (p13) and "Fresh Subs, Salads, Wraps" (p15).
+  - **Avoided:** anything marked "LTO"; the "Select Stores" sections ("Sauced
+    Wings - Select Stores Only", and "Roller Grill Items - Select Stores", which
+    takes out the Monterey Jack, Chicken and Swiss Roller Bite at 180 kcal and
+    14 g protein); "Made-to-Order Beverage - Select Test Stores Only"; and pages
+    24-26, "Additional Items - Converted CEFCO Stores", which repeat items with
+    other figures (Turkey & Cheddar Sliders there carry 18 g fat, not 17). Every
+    locator matches the standard-menu row first.
+  - **Avoided: rows split by kitchen.** Several items are printed twice, marked
+    "(Ank/TH)", "(Jop)", "(Ank/Jop)", "(TH)" or "(THT/Jop)", with different
+    figures (Loaded Breakfast Bowl 530 vs 590 kcal; the sausage biscuits and
+    croissants; Spicy Chicken Tenders (Jop)). A traveller cannot tell which
+    kitchen supplies the store in front of them, so none is in the file.
+  - **No pizza.** Every pizza's rows carry the same size labels ("Warmer Slice
+    (1/6 Large)"), with the pizza's name at the foot of the page, so no pizza row
+    can be located by its own label; a warmer slice is also only about 5 g protein
+    per 100 kcal.
+  - **Energy flag: King's Hawaiian Turkey & Cheddar Sliders**, 520 kcal published
+    against 493 by 4/4/9 (5.2% under the label figure). Kept as published.
+    **Doug: keep or drop.** Every other item is within 2.4%.
+  - **Breaded Pork Sandwich** is 420 mg sodium, low beside the chicken sandwiches
+    (1,500-1,810 mg). It is the published figure.
+  - Chicken Tenders exclude dip cups, which are their own rows; the serving says
+    so. Sodium 1,880 mg.
+  - **Left out, and why:** Turkey Ranch Wrap and BBQ Ranch Chicken Bacon Wrap each
+    have a second row "... with House-made Ranch" with other figures, and nothing
+    says which a store sells. Italian Chopped Salad: 450 kcal against 378 (-16%).
+    Popcorn Chicken and the mac & cheese are "per serving" with no size, so there
+    is no honest `serving`. Hashbrown and Breaded Bone-In Wings print "<1" for
+    sugar.
+  - The 1/4 Lb Cheeseburger keeps the chart's name; `name` drops `®` from King's
+    Hawaiian, the locator does not need it.
 
 ## Chains left out
 
@@ -606,26 +743,15 @@ four are still out for reasons the rule change does not touch.
 | Waffle House | wafflehouse.com answers every plain request with a **Cloudflare JavaScript challenge** (HTTP 403, `cf-mitigated: challenge`, "Just a moment... Enable JavaScript and cookies to continue") - `/nutrition/` and the home page alike - and a WebFetch of the home page is refused the same way (403). Whether Waffle House publishes a nutrition chart at all could not be seen. Not bypassed. |
 | Circle K | **circlek.com has no Circle K nutrition chart of its own.** `www.circlek.com/nutrition` answers **301 to `/us/holiday-station/nutrition`**, the page of Holiday Stationstores (Circle K's Midwest brand), which says it covers "food and beverages at Holiday and Circle K" but links only Holiday's documents: the quick reference is headed **"HOLIDAY STATIONSTORES NUTRITION INFORMATION May 2026"** and its sandwiches are "Holiday Turkey & Cheese Wedge" and the like. Nothing ties any row to a Circle K store outside Holiday's footprint. **And the documents that page links disagree with each other on the same items**: Chicken & Swiss Sandwich is 660 mg sodium in the quick reference and 810 mg in the "Sandwiches & Burrito Nutritional" PDF; Sausage Egg & Cheese Croissant 560 vs 500 kcal; Sausage Egg & Cheese Muffin 470 vs 430 kcal; Brunch Burger 640 vs 620 kcal. The quick reference's rows also drop cells (Calories From Fat is missing on some rows and present on others, and "Cheeseburger" has no serving), so its columns cannot be read by position. `/us/nutrition` and `/us/food` are 404. Not bypassed. |
 
-### Held for Doug (curated 2026-10-28, not in the file)
+### Held for Doug: decided 2026-11-05
 
-Both were read under the ground rules and are ready to add, but each sits one
-step further from the chain's own page than the rule has allowed so far. Their
-entries, locators and notes are kept outside the repo until Doug decides.
-
-- **Jimmy John's** (9 items, sandwiches, "Last Updated: 10/26/2026"). jimmyjohns.com
-  is a JavaScript shell; the only place the chain names its nutrition is a
-  footer link, inside its JS bundle, to `restaurant.nutritionix.com/jimmy-johns/landing`.
-  That is a **link out** to the calculator, not one embedded in a page the chain
-  serves, so the 2026-09-24 embedded-calculator rule does not plainly cover it;
-  and checking it would need new code, because the bundle's name changes on
-  every deploy. **Doug:** does a link the chain itself puts in its footer count?
-- **Casey's** (9 items, gas-station-kitchen, "Updated 9/30/2026"). www.caseys.com
-  answers with a Cloudflare challenge (403) for the home page, /nutrition and its
-  own copy of the PDF; the figures were read from
-  `store.caseys.com/media/cms/Nutrition-and-Ingredients.pdf`, which is Casey's own
-  host and answered 200. What could not be seen is whether the nutrition page
-  links that copy today, and a search summary claimed the www copy differs.
-  **Doug:** is the chain's own second host enough, as Burger King's RBI host was?
+Nothing is held. Jimmy John's and Casey's, held here on 2026-10-28 because each
+sat one step further from the chain's own page than the rule had allowed, went
+into the file on 2026-11-05 under Doug's two rulings (ground rules, "On a
+chain's footer link and its own second host"): a link the chain puts in its own
+footer counts as an embed does, and the chain's own second host counts as
+Burger King's RBI host does. Both were read again from scratch that day; their
+notes are under "Per-chain notes and doubts".
 
 ## Allergens (read 2026-10-28)
 
@@ -664,6 +790,8 @@ were read by eye from page renders.
 | QuikTrip | `https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf` | **not stated** (lists can hide, never clear) | 8 of 8 |
 | Love's | `https://edge.sitecorecloud.io/lovestravela9dd-loves2161-lovesprod042a-cf5a/media/images/store-promotions/fda-list/loves-fresh-food-fda-master8242026.pdf` | **not stated** (lists can hide, never clear) | 9 of 9 |
 | Pilot Flying J | `https://pilotcompany.com/file/nutrition-facts` | **not stated** (lists can hide, never clear) | 8 of 9 |
+| Jimmy John's | none read (2026-11-05) | — | 0 of 9 |
+| Casey's | `https://store.caseys.com/media/cms/Nutrition-and-Ingredients.pdf` (read 2026-11-05) | **not stated** (lists can hide, never clear) | 9 of 9 |
 
 Why some items or chains are not stated:
 
@@ -689,6 +817,17 @@ Why some items or chains are not stated:
   Fish/Shellfish column, so it is not stated; Panera covers neither separately.
 - **Pilot Flying J**: the Boiled Egg Cup's cell is an ingredient, not a
   "Contains" statement.
+- **Jimmy John's**: the server-rendered grid carries no allergen statement (its
+  allergen list is empty). The allergen guide is inside the JavaScript
+  calculator the footer links, and that calculator's data file was not read:
+  the request was refused by this session's own permission check and not made
+  another way. Left off under the same rules.
+- **Casey's**: pages 34-46 are a table of Ingredients, Allergens and May
+  Contain per item. Only the Allergens column is recorded, read by eye from the
+  rendered pages (37, 38 and 39); May Contain is empty for all nine items
+  anyway. Page 1 says its kitchens "are not allergen free" and names the
+  allergens its products come in contact with, which is cross-contact, not a
+  statement of what the column covers, so `allergensCovered` is absent.
 
 Calls made, for Doug to overturn:
 
@@ -698,8 +837,19 @@ Calls made, for Doug to overturn:
   the safer error.
 - **Popeyes' allergen PDF** was found the way its nutrition PDF was: in the
   site's own CMS record for "Nutrition & Allergen Information".
-- **Coverage "not stated"** for Love's, Pilot Flying J, QuikTrip, Starbucks and
-  Dunkin': none says what its allergen statements cover.
+- **Coverage "not stated"** for Love's, Pilot Flying J, QuikTrip, Starbucks,
+  Dunkin' and Casey's: none says what its allergen statements cover.
+- **Casey's ingredient table names four items differently from its nutrition
+  table**: "Pork Tenderloin Sandwich" (Breaded Pork Sandwich), "Crispy Chicken
+  Sandwich with Pickles", "Spicy Crispy Chicken Sandwich with Pickles" (Spicy
+  Chicken Sandwich) and "Quarter Pounder Angus Cheeseburger" (1/4 Lb
+  Cheeseburger). They were matched because the ingredient table's "Warmer Items
+  - Lunch/Dinner" lists the same rows in the same order as the nutrition
+  table's, and each ingredient list describes that item (a breaded pork loin
+  fritter on a brioche bun, and so on). **Doug: overturn and those four go to
+  "not stated".** The crispy and spicy chicken sandwiches are marked wheat
+  only; their buns list highly refined soybean oil, which is exempt, and the
+  chart is recorded as it reads.
 - **Chick-fil-A** has no shellfish column, so its three `[]` items read
   "shellfish not stated" for someone avoiding shellfish.
 - **Wendy's and Culver's** carry the same source questions their nutrition does.
@@ -772,7 +922,8 @@ gas-station-kitchen. Two `"snacks"` rules show only on the Gas station
 screen. The Mexican line was held back in the first pass because no Mexican
 chain made it; Chipotle brought it in, and Taco Bell is the second chain it
 shows on. Sheetz is the second gas-station kitchen. No rule was added or
-changed for either.
+changed for either, nor for Jimmy John's (sandwiches) or Casey's
+(gas-station-kitchen) on 2026-11-05.
 
 ## Refresh
 

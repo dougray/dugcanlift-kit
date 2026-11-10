@@ -71,12 +71,12 @@ states about itself, blank when it states none. See "Published on" in
 | Subway | sandwiches | 8 | us-nutrition-en.pdf on media.subway.com (the "Nutrition Data Tables" link on subway.com) | 2026-09-20 | 2026-01 | "U.S. NUTRITION INFORMATION — January 2026" |
 | Starbucks | coffee | 8 | starbucks.com product nutrition pages, read through the `/apiproxy/v1/ordering/{product}/{form}` JSON they render from | 2026-09-20 | — | none shown |
 | Panera Bread | coffee | 8 | https://www.panerabread.com/content/dam/panerabread/documents/c8-26-nutrition-guide.pdf | 2026-09-20 | 2026-09-02 | "Effective: 9/2/2026 Edition: 1", on every page |
-| Sheetz | gas-station-kitchen | 9 | The Nutritionix calculator embedded at https://www.sheetz.com/nutrition, whose menu grid is `www.nutritionix.com/sheetz/menu/premium` | 2026-10-28 | 2026-10-23 | **"Last Updated: 10/23/2026"** on the calculator and on the grid (it said 09/23/2026 when first read on 2026-09-24) |
+| Sheetz | gas-station-kitchen | 9 | The Nutritionix calculator embedded at https://www.sheetz.com/nutrition, whose menu grid is `www.nutritionix.com/sheetz/menu/premium` | 2026-11-10 | 2026-11-09 | **"Last Updated: 11/09/2026"** on the calculator and on the grid (it said 09/23/2026 when first read on 2026-09-24 and 10/23/2026 on 2026-10-28) |
 | QuikTrip | gas-station-kitchen | 8 | https://www.quiktrip.com/app/uploads/2025/09/nutritional-facts.pdf (linked from quiktrip.com product pages) | 2026-09-20 | — | none printed anywhere in the document; its file properties say 2025-09-12 and its URL path says 2025/09, neither of which is the document speaking |
 | Arby's | sandwiches | 10 | `Arbys_Nutritional_and_Allergen_NOV_2026.pdf` on assets.ctfassets.net (Arby's Contentful space), linked from https://www.arbys.com/nutrition/ | 2026-10-28 | 2026-10 | **"This information is effective as of October 2026."** in the page-10 footnote (the file name says NOV_2026 and the server's Last-Modified is 2026-10-20; neither is the document speaking) |
 | Love's | gas-station-kitchen | 9 | `loves-fresh-food-fda-master8242026.pdf` on Love's Sitecore asset host (`edge.sitecorecloud.io/lovestravela9dd-loves2161-lovesprod042a-cf5a/...`), the "View a list of allergens and nutrition information" link on https://www.loves.com/store-offerings/food-and-beverages | 2026-10-28 | — | none printed anywhere: the title is just "LOVE'S NUTRITIONAL INFORMATION". The file name says 8242026 and the server's Last-Modified is 2026-08-24, neither of which is the document speaking |
 | Pilot Flying J | gas-station-kitchen | 9 | https://pilotcompany.com/file/nutrition-facts (the "Nutrition Facts" link on pilotcompany.com/food-and-drink; it answers with the PDF itself) | 2026-10-28 | — | none printed anywhere in the 58 pages. The server's Content-Disposition names the file `Item-Nutrition-Food-Beverage-October-26.pdf`, which is not the document speaking |
-| Culver's | burgers | 10 | The Nutritionix calculator embedded at https://www.culvers.com/nutrition-and-allergen-guide (an iframe of `r.nutritionix.com/culvers/landing`), whose menu grid is `www.nutritionix.com/culvers/menu/premium` | 2026-10-28 | 2026-10-16 | **"Last Updated: 10/16/2026"** above and below the grid |
+| Culver's | burgers | 10 | The Nutritionix calculator embedded at https://www.culvers.com/nutrition-and-allergen-guide (an iframe of `r.nutritionix.com/culvers/landing`), whose menu grid is `www.nutritionix.com/culvers/menu/premium` | 2026-11-10 | 2026-11-09 | **"Last Updated: 11/09/2026"** above and below the grid (it said 10/16/2026 when first read on 2026-10-28) |
 | Dunkin' | coffee | 8 | `DD_W7_nutrition_guide.pdf` on assets.ctfassets.net (Contentful), the "Nutrition Guide" link on https://www.dunkindonuts.com/nutrition/ | 2026-10-28 | 2026-09-21 | **"The information below was last updated on 09-21-2026."** at the head of both the Limited Time and Permanent sections |
 | Jack in the Box | burgers | 10 | PDF on cdn.sanity.io (`content-production/5cbdb27f...pdf`), the `nutritionUrl` in jackinthebox.com's own home-page data | 2026-10-28 | — | **"2026 NUTRITION FACTS"** as the title, and **"The ingredient and nutrient information contained in this analysis is effective as of November 2026."** - a month after it was read |
 | Jimmy John's | sandwiches | 9 | The Nutritionix calculator jimmyjohns.com's own footer links ("Nutrition & Allergen Guide", `restaurant.nutritionix.com/jimmy-johns/landing`), whose menu grid is `www.nutritionix.com/jimmy-johns/menu/premium` | 2026-11-05 | 2026-11-02 | **"Last Updated: 11/02/2026"** above and below the grid (it said 10/26/2026 when it was held for Doug on 2026-10-28) |
@@ -339,6 +339,16 @@ Hawaiian Turkey & Cheddar Sliders (5.2% under); see their notes.
     beside the Skinny one then is not known. **Doug: if you would rather a
     renamed item take a new id, say so; the old one would then be dropped
     and skipped silently by every client.**
+  - **Re-read 2026-11-10** after the 2026-11-10 check reported the grid no
+    longer states 10/23/2026. One plain request each for sheetz.com/nutrition
+    (200, 9.4 MB; its iframes still embed
+    `nutritionix.com/sheetz/nutrition-calculator/premium`, in the `www.` and
+    `m.` forms), the grid (200, 2,453,967 bytes) and the calculator (200).
+    The grid, above and below, and the calculator all print **"Last Updated:
+    11/09/2026"**, so `publishedOn` is `2026-11-09`; the page itself prints
+    no date. Every figure of all nine items reads exactly as bundled, and the
+    repeated rows agree, in the same sections as before ("Premium Chicken -
+    Half" still in MTO, Eat Shmart, and Subz, Sandwiches & Wrapz).
   - **"Catina Bowl" is spelled that way on the chart.** It looks like Sheetz's
     typo for Cantina. The name is what the source publishes. **Doug: say the
     word and it is spelled Cantina, at the cost of no longer matching.**
@@ -538,6 +548,16 @@ Hawaiian Turkey & Cheddar Sliders (5.2% under); see their notes.
   - **publishedOn is the grid's "Last Updated: 10/16/2026".** The loader page is JS-only, so
     whether it prints the same date could not be seen. The data file's own `generatedAt`
     (2026-10-12) and Last-Modified are metadata and were not used.
+  - **Re-read 2026-11-10** after the 2026-11-10 check reported the grid no
+    longer states 10/16/2026. One plain request each for
+    culvers.com/nutrition-and-allergen-guide (200, 255,089 bytes; its page
+    data still names the `ContentIframe` whose `iframeUrl` is
+    `https://r.nutritionix.com/culvers/landing`) and the grid (200, 532,345
+    bytes). The grid prints **"Last Updated: 11/09/2026"** above and below,
+    so `publishedOn` is `2026-11-09`; the page itself prints no date. Every
+    figure of all ten items reads exactly as bundled, and the ButterBurger
+    Single and 2-piece tenders repeats under Kids' Meals still agree. The
+    data file was not fetched again.
   - The grid has a **"Test and LTOs (Preview Only)"** section (103 rows, e.g. Bacon Bleu Pub
     Burger); nothing was taken from it. The chart's note says test products and regional
     items are not on the website.

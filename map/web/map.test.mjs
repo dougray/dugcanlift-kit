@@ -124,6 +124,20 @@ function fakeFetch(answer = () => new Response(new Uint8Array([1, 2, 3]), { stat
   return f;
 }
 
+/** Every http:// or https:// address in a text, found by plain search, up to a quote, space or backslash. */
+function urlsIn(text) {
+  const found = [];
+  const lower = text.toLowerCase();
+  for (const scheme of ["http://", "https://"]) {
+    for (let i = lower.indexOf(scheme); i >= 0; i = lower.indexOf(scheme, i + 1)) {
+      let j = i;
+      while (j < text.length && !`'"\\\` \t\n\r`.includes(text[j])) j++;
+      found.push(text.slice(i, j));
+    }
+  }
+  return found;
+}
+
 const tilePath = (t) => `https://tiles.openfreemap.org/planet/v1/${t.z}/${t.x}/${t.y}.pbf`;
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -230,7 +244,11 @@ test("the web style names no server", () => {
     const template = JSON.parse(readFileSync(join(here, "..", f), "utf8"));
     const s = M.webStyle(template);
     const text = JSON.stringify(s);
-    assert.doesNotMatch(text, /https?:\/\/(?!www\.dugcanlift\.com\/lift\/map\/)/, f);
+    for (const u of urlsIn(text)) {
+      const parsed = new URL(u.replace("{fontstack}", "x").replace("{range}", "0-255"));
+      assert.equal(parsed.origin, ORIGIN, f);
+      assert.ok(parsed.pathname.startsWith("/lift/map/"), f);
+    }
     assert.doesNotMatch(text, /\{\{/, f);
     const source = s.sources.openmaptiles;
     assert.equal("url" in source, false);
@@ -461,11 +479,16 @@ test("only download reaches the network", () => {
   const fetches = [...src.matchAll(/fetch\(/g)].map((m) => m.index);
   assert.ok(fetches.length >= 1);
   for (const i of fetches) assert.ok(i > start && i < end, "fetch( outside download");
-  assert.match(inside, /https:\/\/tiles\.openfreemap\.org/);
-  for (const [url] of inside.matchAll(/https?:\/\/[^'"\s]*/g)) {
-    assert.ok(url.startsWith("https://tiles.openfreemap.org/"), url);
+  assert.ok(inside.includes("https://tiles.openfreemap.org/"));
+  const urls = urlsIn(inside);
+  assert.ok(urls.length >= 1);
+  for (const url of urls) {
+    const parsed = new URL(url);
+    assert.equal(parsed.protocol, "https:", url);
+    assert.equal(parsed.host, "tiles.openfreemap.org", url);
   }
-  assert.doesNotMatch(outside, /openfreemap\.org|https?:\/\//);
+  assert.ok(!outside.toLowerCase().includes("openfreemap.org"), "openfreemap.org outside download");
+  assert.deepEqual(urlsIn(outside), [], "an address outside download");
   for (const word of ["XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource", "navigator.connection"]) {
     assert.ok(!src.includes(word), word);
   }

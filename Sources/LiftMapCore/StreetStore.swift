@@ -20,12 +20,27 @@ public struct StreetArea: Identifiable, Equatable, Codable, Sendable {
     }
 }
 
+public enum StreetStoreError: Error, Equatable {
+    /// A tile for an area that has no row: deleted, or never begun. Writing it
+    /// would leave `area_tiles` rows no `deleteArea` ever sweeps.
+    case unknownArea
+}
+
 /// Every downloaded area's vector tiles in ONE MBTiles file, which MapLibre
 /// Native reads read-only through `mbtiles://`. `areas` and `area_tiles` are
 /// ours; MapLibre ignores them. `area_tiles` holds XYZ, `tiles` holds TMS rows.
 public final class StreetStore: Sendable {
     public let fileURL: URL
     private let queue: DatabaseQueue
+
+    /// Posted, with the store as its object, whenever the set of finished
+    /// areas changes (`finishArea`, `deleteArea`), on whichever thread made
+    /// the change. A map drawn over this store decides again on it.
+    public static let didChange = Notification.Name("LiftMapStreetsChanged")
+
+    private func postChange() {
+        NotificationCenter.default.post(name: Self.didChange, object: self)
+    }
 
     public init(fileURL: URL) throws {
         self.fileURL = fileURL
@@ -86,8 +101,12 @@ public final class StreetStore: Sendable {
         return id
     }
 
+    /// Throws `StreetStoreError.unknownArea` for an area with no row.
     public func put(_ data: Data, for tile: TileID, area: UUID) throws {
         try queue.write { db in
+            guard try Int.fetchOne(db, sql: "SELECT 1 FROM areas WHERE id = ?", arguments: [area.uuidString]) != nil else {
+                throw StreetStoreError.unknownArea
+            }
             try db.execute(sql: """
                 INSERT OR REPLACE INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?, ?, ?, ?)
                 """, arguments: [tile.z, tile.x, tile.tmsRow, data])
@@ -114,6 +133,7 @@ public final class StreetStore: Sendable {
             try db.execute(sql: "UPDATE areas SET finished_at = ?, bytes = ? WHERE id = ?",
                            arguments: [Date().timeIntervalSince1970, bytes, id.uuidString])
         }
+        postChange()
     }
 
     /// Finished areas, newest first.
@@ -150,6 +170,7 @@ public final class StreetStore: Sendable {
                 """)
             try db.execute(sql: "DELETE FROM areas WHERE id = ?", arguments: [id.uuidString])
         }
+        postChange()
     }
 
     public func covers(_ bounds: MapBounds) throws -> Bool {

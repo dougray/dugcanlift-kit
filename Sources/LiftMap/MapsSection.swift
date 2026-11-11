@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import LiftCore
@@ -109,6 +110,8 @@ public struct MapsSection: View {
                     reload()
                     here = await location()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: StreetStore.didChange, object: store)
+                    .receive(on: DispatchQueue.main)) { _ in reload() }
                 .sheet(item: $sheet) { request in
                     StreetsSheet(plan: request.plan, name: request.name, store: store, mode: request.mode) { area in
                         if area != nil, let old = request.replacing { try? store.deleteArea(old) }

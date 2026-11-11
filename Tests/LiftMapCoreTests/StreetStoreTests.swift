@@ -26,6 +26,36 @@ final class StreetStoreTests: XCTestCase {
         XCTAssertEqual(try count(store, "SELECT COUNT(*) FROM tiles WHERE zoom_level = 14 AND tile_column = 3413 AND tile_row = 10165"), 1)
     }
 
+    func testATileForAnAreaWithNoRowIsRefused() throws {
+        let store = try makeStore()
+        let tile = TileID(z: 3, x: 1, y: 2)
+        XCTAssertThrowsError(try store.put(Data([1]), for: tile, area: UUID())) {
+            XCTAssertEqual($0 as? StreetStoreError, .unknownArea)
+        }
+        let id = try store.beginArea(plan(), name: "Gone")
+        try store.deleteArea(id)
+        XCTAssertThrowsError(try store.put(Data([1]), for: tile, area: id)) {
+            XCTAssertEqual($0 as? StreetStoreError, .unknownArea)
+        }
+        XCTAssertEqual(try count(store, "SELECT COUNT(*) FROM area_tiles"), 0)
+        XCTAssertEqual(try count(store, "SELECT COUNT(*) FROM tiles"), 0)
+    }
+
+    func testFinishingAndDeletingAnAreaEachSaySoOnce() throws {
+        let store = try makeStore()
+        let id = try store.beginArea(plan(), name: "A")
+        var posts = 0
+        let observer = NotificationCenter.default.addObserver(forName: StreetStore.didChange, object: store,
+                                                              queue: nil) { _ in posts += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        try store.put(Data([1]), for: TileID(z: 3, x: 1, y: 2), area: id)
+        XCTAssertEqual(posts, 0, "a tile is not a finished area")
+        try store.finishArea(id)
+        XCTAssertEqual(posts, 1)
+        try store.deleteArea(id)
+        XCTAssertEqual(posts, 2)
+    }
+
     func testAnUnfinishedAreaIsListedSeparately() throws {
         let store = try makeStore()
         let id = try store.beginArea(plan(), name: "A")

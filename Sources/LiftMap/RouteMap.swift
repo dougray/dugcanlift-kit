@@ -2,6 +2,7 @@ import SwiftUI
 import LiftCore
 import LiftMapCore
 #if canImport(MapLibre) && os(iOS)
+import Combine
 import CoreLocation
 import MapLibre
 #endif
@@ -30,6 +31,12 @@ public struct RouteMap: View {
     let store: StreetStore?
 
     @Environment(\.colorScheme) private var colorScheme
+    #if canImport(MapLibre) && os(iOS)
+    /// Bumped whenever the store's finished areas change, so a download that
+    /// finishes, or an area deleted in Settings, decides this map again.
+    @State private var revision = 0
+    @State private var memo = StyleMemo()
+    #endif
 
     public init(points: [OutdoorShareCoordinate], aspectRatio: CGFloat? = nil,
                 interactive: Bool = false, store: StreetStore? = StreetStore.shared) {
@@ -41,11 +48,15 @@ public struct RouteMap: View {
 
     public var body: some View {
         #if canImport(MapLibre) && os(iOS)
-        if let store, let style = mapStyle(store) {
-            framed(map(store: store, style: style))
-        } else {
-            RouteCanvas(points: points, aspectRatio: aspectRatio)
+        Group {
+            if let store, let style = mapStyle(store) {
+                framed(map(style: style))
+            } else {
+                RouteCanvas(points: points, aspectRatio: aspectRatio)
+            }
         }
+        .onReceive(NotificationCenter.default.publisher(for: StreetStore.didChange, object: store)
+            .receive(on: DispatchQueue.main)) { _ in revision += 1 }
         #else
         RouteCanvas(points: points, aspectRatio: aspectRatio)
         #endif
@@ -54,16 +65,24 @@ public struct RouteMap: View {
     #if canImport(MapLibre) && os(iOS)
     /// The style to draw with, or nil for the plain line: no area covers the
     /// route, or (a build defect) the bundled style is missing -- never a blank square.
+    /// Decided again only when the route's bounds, the store's areas or the
+    /// appearance change, not on every GPS fix.
     private func mapStyle(_ store: StreetStore) -> Data? {
-        let decision = RouteMapDecision.decide(points: points) { (try? store.covers($0)) ?? false }
-        guard decision == .map else { return nil }
-        return try? MapStyle.json(dark: colorScheme == .dark, storeURL: store.fileURL)
+        let dark = colorScheme == .dark
+        let key = StyleMemo.Key(bounds: points.count >= 2 ? MapBounds.around(points) : nil,
+                                revision: revision, dark: dark, storeURL: store.fileURL)
+        return memo.style(for: key) {
+            let decision = RouteMapDecision.decide(points: points) { (try? store.covers($0)) ?? false }
+            guard decision == .map else { return nil }
+            return try? MapStyle.json(dark: dark, storeURL: store.fileURL)
+        }
     }
 
-    private func map(store: StreetStore, style: Data) -> some View {
+    private func map(style: Data) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Theme.background
-            StreetMapView(points: points, style: style, dark: colorScheme == .dark, interactive: interactive)
+            StreetMapView(points: points, style: style, dark: colorScheme == .dark, revision: revision,
+                          interactive: interactive)
             Text(Self.attribution)
                 .font(Theme.detail)
                 .foregroundStyle(Theme.textSecondary)
@@ -97,6 +116,28 @@ public struct RouteMap: View {
 
 #if canImport(MapLibre) && os(iOS)
 
+/// The last decision and style, kept across body evaluations. A class, so
+/// remembering does not count as a state change during a view update.
+final class StyleMemo {
+    struct Key: Equatable {
+        var bounds: MapBounds?
+        var revision: Int
+        var dark: Bool
+        var storeURL: URL
+    }
+
+    private var key: Key?
+    private var style: Data?
+
+    func style(for key: Key, compute: () -> Data?) -> Data? {
+        if key != self.key {
+            self.key = key
+            style = compute()
+        }
+        return style
+    }
+}
+
 /// An `MLNMapView` that says when its size changes, so the route can be fitted
 /// once there is room to fit it in.
 final class RouteMapUIView: MLNMapView {
@@ -116,6 +157,9 @@ struct StreetMapView: UIViewRepresentable {
     let points: [OutdoorShareCoordinate]
     let style: Data
     let dark: Bool
+    /// The store's revision: a new one reloads the style, so tiles a new
+    /// download added are read rather than remembered as empty.
+    let revision: Int
     let interactive: Bool
 
     static let edgePadding: CGFloat = 24
@@ -130,6 +174,7 @@ struct StreetMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.points = points
         coordinator.dark = dark
+        coordinator.revision = revision
         // Made with the local style from the start: a map view made without
         // one loads MapLibre's default style, which is a server's. The style
         // goes in as a file; if the file cannot be written, as text.
@@ -157,8 +202,9 @@ struct StreetMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         view.isScrollEnabled = interactive
         view.isZoomEnabled = interactive
-        if dark != coordinator.dark {
+        if dark != coordinator.dark || revision != coordinator.revision {
             coordinator.dark = dark
+            coordinator.revision = revision
             // Layers go back on, in the new colors, when the new style loads.
             // Never `styleURL = nil`: that is MapLibre's default style, a server's.
             if let file = coordinator.writeStyle(style) {
@@ -182,6 +228,7 @@ struct StreetMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var points: [OutdoorShareCoordinate] = []
         var dark = false
+        var revision = 0
         private var styleFile: URL?
 
         static let routeSource = "lift-route"

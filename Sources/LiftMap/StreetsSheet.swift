@@ -40,6 +40,8 @@ public struct StreetsSheet: View {
     /// The area this sheet is filling, once begun.
     @State private var areaID: UUID?
     @State private var task: Task<Void, Never>?
+    /// Set while a cancel waits for the download to stop and the area to go.
+    @State private var cancelling = false
 
     /// - Parameter note: one more line under what the server learns, for
     ///   example Coach's "This asks for the area around your client's route."
@@ -121,6 +123,7 @@ public struct StreetsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { cancel() }
+                        .disabled(cancelling)
                 }
                 if phase == .ready {
                     ToolbarItem(placement: .confirmationAction) {
@@ -129,7 +132,7 @@ public struct StreetsSheet: View {
                 }
             }
         }
-        .interactiveDismissDisabled(isDownloading)
+        .interactiveDismissDisabled(isDownloading || cancelling)
     }
 
     private var radius: Binding<Int> {
@@ -141,7 +144,7 @@ public struct StreetsSheet: View {
 
     /// Begins the area (once) and fills it; a retry fills the same area.
     private func start() {
-        guard !isDownloading else { return }
+        guard !isDownloading, !cancelling else { return }
         let plan = plan
         let id: UUID
         if let areaID {
@@ -173,20 +176,26 @@ public struct StreetsSheet: View {
         }
     }
 
-    /// Stops a download in flight. An area this sheet began is removed, once
-    /// the download has stopped writing to it; an area from before (a retry
-    /// from the Maps list) is kept, unfinished, as it was.
+    /// Stops a download in flight. An area this sheet began is removed once
+    /// the download has stopped writing to it, and only then does `onDone`
+    /// run, so the list it returns to never shows the cancelled area as
+    /// unfinished. An area from before (a retry from the Maps list) is kept,
+    /// unfinished, as it was.
     private func cancel() {
+        guard !cancelling else { return }
         let running = task
         running?.cancel()
-        if mode == .new || mode == .update, let areaID {
-            let store = store
-            Task {
-                _ = await running?.result
-                try? store.deleteArea(areaID)
-            }
+        guard mode == .new || mode == .update, let areaID else {
+            onDone(nil)
+            return
         }
-        onDone(nil)
+        cancelling = true
+        let store = store
+        Task {
+            _ = await running?.result
+            try? store.deleteArea(areaID)
+            onDone(nil)
+        }
     }
 }
 

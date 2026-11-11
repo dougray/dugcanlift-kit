@@ -29,3 +29,19 @@ they are kept in separate files so that no obligation spreads to another.
     ReferenceDatabase.recipeAttributions() returns these credits so the apps
     can show them. CC BY-SA requires the credit to be given; it must stay
     reachable from the UI.
+
+LiftKit's street maps (map/) are drawn from files the person downloads.
+
+  map/fonts/
+    Noto Sans Regular glyphs. SIL Open Font License 1.1; the license text
+    is map/fonts/OFL.txt.
+
+  Street data
+    © OpenStreetMap contributors. Open Database License (ODbL) 1.0 —
+    https://www.openstreetmap.org/copyright
+    Vector tiles from OpenFreeMap — https://openfreemap.org
+    Every map shows "© OpenStreetMap contributors · OpenFreeMap".
+
+  MapLibre
+    MapLibre Native (iOS, Android): BSD-2-Clause.
+    MapLibre GL JS (web): BSD-3-Clause.

@@ -20,8 +20,12 @@ function memoryStorage() {
   const m = new Map();
   const s = {
     reads: 0,
+    failWrites: false,
     getItem(k) { s.reads += 1; return m.has(k) ? m.get(k) : null; },
-    setItem(k, v) { m.set(k, String(v)); },
+    setItem(k, v) {
+      if (s.failWrites) throw new Error("QuotaExceededError");
+      m.set(k, String(v));
+    },
     removeItem(k) { m.delete(k); },
   };
   return s;
@@ -92,6 +96,7 @@ function fakeMapLibre() {
 }
 
 function load({ fetch, caches = fakeCaches(), storage = memoryStorage(), maplibregl } = {}) {
+  // One tab: its own window, sharing storage and caches with any other tab built on them.
   const win = new EventTarget();
   Object.assign(win, {
     localStorage: storage, caches, fetch, maplibregl,
@@ -464,7 +469,6 @@ test("only download reaches the network", () => {
   for (const word of ["XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource", "navigator.connection"]) {
     assert.ok(!src.includes(word), word);
   }
-  // The one dynamic import loads MapLibre from the app's own map folder.
   // MapLibre is the page's own classic script; map.js imports nothing.
   assert.ok(!src.includes("import("), "import(");
   assert.ok(!/\bimportScripts\b|\.mjs\b/.test(src), "no module or worker script is loaded from here");
@@ -685,4 +689,100 @@ test("the checksum file lists every web file the apps copy", () => {
   }
   assert.ok(!listed.some((l) => l.endsWith(".mjs")), "no 6.x module files");
   assert.ok(!listed.some((l) => l.endsWith(".test.mjs")));
+});
+
+
+// MARK: - Fix round 2: other tabs, second mounts, destroy, a cancel whose clean-up fails
+
+/** The `storage` event a browser sends to every other tab after a write. */
+function storageEvent(win, key = "lift.mapAreas") {
+  const e = new Event("storage");
+  Object.defineProperty(e, "key", { value: key });
+  win.dispatchEvent(e);
+}
+
+test("a download in another tab rebuilds no map until an area finishes", async () => {
+  const storage = memoryStorage();
+  const caches = fakeCaches();
+  const writer = load({ storage, caches });
+  finishedDenver(writer.M);
+
+  const gl = fakeMapLibre();
+  const reader = load({ storage, caches, maplibregl: gl });
+  let heard = 0;
+  reader.win.addEventListener("liftmap:changed", () => { heard += 1; });
+  reader.M.mount(reader.win.document.createElement("div"), inDenver, { fallback: () => assert.fail("no line") });
+  assert.equal(gl.maps.length, 1);
+
+  // The other tab begins an area and writes tiles: one index write, one event, each.
+  const id = writer.M.beginArea(writer.M.plan(51.5, -0.12, 10), "London");
+  storageEvent(reader.win);
+  for (let i = 0; i < 5; i++) {
+    await writer.M.putTile(id, { z: 14, x: 8000 + i, y: 5000 }, new Uint8Array([1]).buffer);
+    storageEvent(reader.win);
+  }
+  assert.equal(heard, 0, "tiles arriving elsewhere change no decision");
+  assert.equal(gl.maps.length, 1, "and rebuild no map");
+  assert.equal(gl.maps[0].removed, false);
+
+  // Finishing it changes the finished areas: decide again, once.
+  writer.M.finishArea(id);
+  storageEvent(reader.win);
+  assert.equal(heard, 1);
+  storageEvent(reader.win);
+  assert.equal(heard, 1, "the same finished areas again is no change");
+
+  await writer.M.deleteArea(id);
+  storageEvent(reader.win);
+  assert.equal(heard, 2, "a deleted finished area is a change");
+  storageEvent(reader.win, "someone.else");
+  assert.equal(heard, 2, "another key is not ours");
+});
+
+test("a second mount into the same container replaces the first", () => {
+  const gl = fakeMapLibre();
+  const { M, win } = load({ maplibregl: gl });
+  finishedDenver(M);
+  const container = win.document.createElement("div");
+  let firstLines = 0;
+  M.mount(container, inDenver, { fallback: () => { firstLines += 1; } });
+  assert.equal(gl.maps.length, 1);
+  M.mount(container, inDenver, { fallback: () => {} });
+  assert.equal(gl.maps[0].removed, true, "the first map is removed, not just detached");
+  assert.equal(gl.maps.length, 2);
+
+  // The first handle no longer listens: a change rebuilds only the second.
+  const id = M.beginArea(M.plan(51.5, -0.12, 10), "London");
+  M.finishArea(id);
+  assert.equal(gl.maps.length, 3);
+  assert.equal(firstLines, 0);
+});
+
+test("destroy stops listening", () => {
+  const gl = fakeMapLibre();
+  const { M, win } = load({ maplibregl: gl });
+  let lines = 0;
+  const h = M.mount(win.document.createElement("div"), inDenver, { fallback: () => { lines += 1; } });
+  assert.equal(lines, 1);
+  h.destroy();
+  finishedDenver(M);
+  assert.equal(gl.maps.length, 0, "no map is built for a destroyed view");
+  assert.equal(lines, 1, "and no line is drawn");
+  h.destroy();
+});
+
+test("a cancel is reported as a cancel even when removing the area fails", async () => {
+  const waiting = [];
+  const fetch = fakeFetch(() => new Promise((resolve) => waiting.push(() => resolve(new Response(new Uint8Array([4]), { status: 200 })))));
+  const { M, storage } = load({ fetch });
+  const controller = new AbortController();
+  const run = M.download(M.plan(39.7392, -104.9903, 10), "X", () => {}, { signal: controller.signal }).then(() => null, (e) => e);
+  while (waiting.length < 4) await tick();
+  controller.abort();
+  storage.failWrites = true;
+  for (const go of waiting.splice(0)) go();
+  const err = await run;
+  assert.equal(err.code, "cancelled");
+  assert.ok(err.deleteError, "the failed clean-up rides along");
+  assert.match(err.deleteError.message, /Quota/);
 });

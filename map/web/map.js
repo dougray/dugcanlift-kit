@@ -361,8 +361,20 @@
     changed();
   }
 
+  /** The finished areas, as one string: what a map's decision depends on, and nothing about tiles. */
+  function finishedSignature() {
+    return readIndex()
+      .filter(function (e) { return e.finished; })
+      .map(function (e) { return e.id; })
+      .sort()
+      .join(',');
+  }
+
+  var lastSignature = null;
+
   /** Says, once, that the finished areas changed; every mounted map decides again. */
   function changed() {
+    lastSignature = finishedSignature();
     revision += 1;
     if (typeof window.dispatchEvent !== 'function') return;
     var Ev = window.CustomEvent;
@@ -557,7 +569,11 @@
       var err = cancelled() ? fail('cancelled', 'Cancelled.') : e;
       err.areaId = id;
       if (err.code === 'cancelled' && options && options.deleteOnCancel) {
-        return deleteArea(id).then(function () { throw err; });
+        // The cancel is the answer whatever the clean-up does; a failed delete rides along.
+        return deleteArea(id).then(function () { throw err; }, function (deleteError) {
+          err.deleteError = deleteError;
+          throw err;
+        });
       }
       throw err;
     });
@@ -730,7 +746,12 @@
    * (and the attribution's strip clear below it) and fits again as it grows. No location dot, no controls, no logo; the
    * attribution sits bottom-trailing in the secondary text color.
    */
+  /** The handle drawing into each container, so a second mount replaces the first cleanly. */
+  var mounted = new WeakMap();
+
   function mount(container, points, options) {
+    var previous = mounted.get(container);
+    if (previous) previous.destroy();
     var o = options || {};
     var pts = points || [];
     var dark = !!o.dark;
@@ -958,21 +979,24 @@
     function onChanged() { render(); }
     if (typeof window.addEventListener === 'function') window.addEventListener(CHANGED, onChanged);
 
-    render();
-
-    return {
+    var handle = {
       update: function (next, opts) {
         pts = next || [];
         if (opts && 'dark' in opts) dark = !!opts.dark;
         render();
       },
       destroy: function () {
+        if (destroyed) return;
         destroyed = true;
         if (typeof window.removeEventListener === 'function') window.removeEventListener(CHANGED, onChanged);
+        if (mounted.get(container) === handle) mounted.delete(container);
         teardown();
         clear(container);
       },
     };
+    mounted.set(container, handle);
+    render();
+    return handle;
   }
 
   // MARK: - Setup
@@ -985,13 +1009,17 @@
     if (typeof o.base === 'string') cfg.base = o.base.charAt(o.base.length - 1) === '/' ? o.base : o.base + '/';
     lastIndex = null;
     lastRaw = undefined;
+    lastSignature = finishedSignature();
     return api;
   }
 
-  // Another tab finished or deleted an area: decide again here too.
+  // Another tab finished or deleted an area: decide again here too. A download
+  // in another tab rewrites the index for every tile; those writes leave the
+  // finished areas as they were and must not rebuild a single map.
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('storage', function (e) {
-      if (e && (e.key === cfg.storageKey || e.key === null)) changed();
+      if (!e || (e.key !== cfg.storageKey && e.key !== null)) return;
+      if (finishedSignature() !== lastSignature) changed();
     });
   }
 
@@ -1035,5 +1063,6 @@
     mount: mount,
   };
 
+  lastSignature = finishedSignature();
   window.LiftMap = api;
 })(window);

@@ -39,6 +39,21 @@ final class StreetTilesTests: XCTestCase {
         XCTAssertEqual(StreetAreaPlan.wideKm, 100)
     }
 
+    /// Whole-plan numbers for Denver, the same in the Kotlin and JS ports'
+    /// suites: a port that plans a different set of tiles fails here and there.
+    func testDenverPlansAreTheSharedNumbers() {
+        let expected: [(km: Int, tiles: Int, bytes: Int)] = [
+            (10, 273, 8_110_000),
+            (25, 1_125, 23_790_000),
+            (50, 4_069, 79_430_000),
+        ]
+        for e in expected {
+            let plan = StreetAreaPlan(latitude: 39.7392, longitude: -104.9903, detailKm: e.km)
+            XCTAssertEqual(plan.tiles.count, e.tiles, "\(e.km) km tiles")
+            XCTAssertEqual(plan.estimatedBytes, e.bytes, "\(e.km) km bytes")
+        }
+    }
+
     func testForRouteGrowsByTwoKm() {
         let route = MapBounds(south: 39.70, west: -105.00, north: 39.71, east: -104.99)
         let plan = StreetAreaPlan.forRoute(route)

@@ -8,14 +8,14 @@ public struct StreetAreaPlan: Equatable, Sendable {
     public static let detailZooms = 11 ... 14
     public static let detailChoices = [10, 25, 50]
 
-    public var latitude: Double
-    public var longitude: Double
+    public private(set) var latitude: Double
+    public private(set) var longitude: Double
     /// The detail radius chosen; 0 for a route plan, which is not a radius.
-    public var detailKm: Int
-    public var wide: MapBounds
-    public var detail: MapBounds
-    public var tiles: [TileID]
-    public var estimatedBytes: Int
+    public private(set) var detailKm: Int
+    public private(set) var wide: MapBounds
+    public private(set) var detail: MapBounds
+    public private(set) var tiles: [TileID]
+    public private(set) var estimatedBytes: Int
 
     public init(latitude: Double, longitude: Double, detailKm: Int) {
         self.init(latitude: latitude, longitude: longitude, detailKm: detailKm,

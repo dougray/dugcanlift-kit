@@ -16,8 +16,10 @@ permissions:
 jobs:
   test:
     name: swift test
-    # macos-26 ships Xcode 26.6, matching local. The package's tests run on
-    # the macOS host; no simulator and no signing involved.
+    # macos-26 ships Xcode 26.6. The package's tests run on the macOS host;
+    # a last step builds LiftMap for the iOS Simulator SDK (a build only, no
+    # simulator is booted), which ad-hoc signs the resource bundles as an app
+    # build would. No signing identity is involved.
     runs-on: macos-26
     timeout-minutes: 30
     steps:

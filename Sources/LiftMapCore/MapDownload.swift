@@ -20,7 +20,10 @@ extension URLSession {
 }
 
 /// Refuses any redirect that leaves the host or the https scheme; the 3xx then
-/// comes back as the response and reads as `http(status)`.
+/// comes back as the response and reads as `http(status)`. A redirect to
+/// another https path on the same host is followed. The web module
+/// (`map/web/map.js`) refuses every redirect, so a same-host redirect that
+/// OpenFreeMap might add one day would break only the web download.
 private final class StayOnHost: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse,

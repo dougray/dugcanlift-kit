@@ -42,6 +42,8 @@ public struct StreetsSheet: View {
     @State private var task: Task<Void, Never>?
     /// Set while a cancel waits for the download to stop and the area to go.
     @State private var cancelling = false
+    /// Set just before `onDone(area)`: from then on a Cancel deletes nothing.
+    @State private var finished = false
 
     /// - Parameter note: one more line under what the server learns, for
     ///   example Coach's "This asks for the area around your client's route."
@@ -169,6 +171,7 @@ public struct StreetsSheet: View {
                 // Cancelled as it finished: the cancel removes the area.
                 guard !Task.isCancelled else { return }
                 phase = .ready
+                finished = true
                 onDone(area)
             } catch {
                 if !Task.isCancelled { phase = .failed }
@@ -180,21 +183,32 @@ public struct StreetsSheet: View {
     /// the download has stopped writing to it, and only then does `onDone`
     /// run, so the list it returns to never shows the cancelled area as
     /// unfinished. An area from before (a retry from the Maps list) is kept,
-    /// unfinished, as it was.
+    /// unfinished, as it was. A Cancel that lands after the download finished
+    /// and was handed over does nothing (`DownloadCancel`).
     private func cancel() {
-        guard !cancelling else { return }
-        let running = task
-        running?.cancel()
-        guard mode == .new || mode == .update, let areaID else {
-            onDone(nil)
+        let sheetBeganArea = mode == .new || mode == .update
+        switch DownloadCancel.decide(finished: finished, cancelling: cancelling,
+                                     sheetBeganArea: sheetBeganArea, areaID: areaID) {
+        case .ignore:
             return
-        }
-        cancelling = true
-        let store = store
-        Task {
-            _ = await running?.result
-            try? store.deleteArea(areaID)
+        case .close:
+            task?.cancel()
             onDone(nil)
+        case .deleteThenClose(let id):
+            let running = task
+            running?.cancel()
+            cancelling = true
+            let store = store
+            Task {
+                _ = await running?.result
+                // Decided again: the download may have finished and been handed over meanwhile.
+                guard DownloadCancel.decide(finished: finished, cancelling: false,
+                                            sheetBeganArea: sheetBeganArea, areaID: id) == .deleteThenClose(id) else {
+                    return
+                }
+                try? store.deleteArea(id)
+                onDone(nil)
+            }
         }
     }
 }

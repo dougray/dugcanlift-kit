@@ -30,6 +30,17 @@ Which target may link which:
 A widget or a share extension never links a map product: MapLibre is about
 8-9 MB, and the store is SQLite, which neither extension opens.
 
+**Maps step back while streets download.** MapLibre reads the MBTiles store
+in the same process as the download that writes it, through the same SQLite,
+opened read-only and with no busy timeout: a tile read during one of our
+commits fails at once, and a read held during our write makes the write fail.
+So `StreetStore` has a write gate. Every write, every download (from before
+its area is begun to its last tile, however it ends) and every delete hold it,
+and while it is held `RouteMap` draws the plain line, which takes the map view
+down so MapLibre lets go of the file. When the gate opens, the map comes back.
+The store's 5 s busy timeout and its retry on a lock error stay underneath as
+a second line of defence.
+
 Consumed by [`lift-ios`](https://github.com/dougray/dugcanlift-lift-ios) and
 [`coach-ios`](https://github.com/dougray/dugcanlift-coach-ios). Both pin a
 tag rather than tracking a branch: a change here reaches two shipped apps.

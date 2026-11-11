@@ -144,28 +144,32 @@ public struct StreetsSheet: View {
         )
     }
 
-    /// Begins the area (once) and fills it; a retry fills the same area.
+    /// Begins the area (once) and fills it; a retry fills the same area. The
+    /// store's write gate is held from before the area is begun until the
+    /// download ends, so maps step back first (`StreetStore.whileWriting`).
     private func start() {
         guard !isDownloading, !cancelling else { return }
         let plan = plan
-        let id: UUID
-        if let areaID {
-            id = areaID
-        } else {
-            guard let begun = try? store.beginArea(plan, name: name) else {
-                phase = .failed
-                return
-            }
-            id = begun
-            areaID = begun
-        }
+        let name = name
+        let store = store
         phase = .downloading(done: 0, total: plan.tiles.count)
         let download = MapDownload(store: store)
         task = Task {
             do {
-                let area = try await download.resume(id, plan: plan) { done, total in
-                    Task { @MainActor in
-                        if case .downloading = phase { phase = .downloading(done: done, total: total) }
+                let area = try await store.whileWriting { () async throws -> StreetArea in
+                    let id: UUID
+                    if let areaID {
+                        id = areaID
+                    } else {
+                        // Cancelled while maps stepped back: nothing is begun.
+                        try Task.checkCancellation()
+                        id = try store.beginArea(plan, name: name)
+                        areaID = id
+                    }
+                    return try await download.resume(id, plan: plan) { done, total in
+                        Task { @MainActor in
+                            if case .downloading = phase { phase = .downloading(done: done, total: total) }
+                        }
                     }
                 }
                 // Cancelled as it finished: the cancel removes the area.
@@ -199,7 +203,11 @@ public struct StreetsSheet: View {
             running?.cancel()
             cancelling = true
             let store = store
+            // Held across the wait and the delete, so the gate does not open
+            // between the download stopping and its area going.
+            store.beginWriting()
             Task {
+                defer { store.endWriting() }
                 _ = await running?.result
                 // Decided again: the download may have finished and been handed over meanwhile.
                 guard DownloadCancel.decide(finished: finished, cancelling: false,

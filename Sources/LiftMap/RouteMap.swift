@@ -57,6 +57,10 @@ public struct RouteMap: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: StreetStore.didChange, object: store)
             .receive(on: DispatchQueue.main)) { _ in revision += 1 }
+        // The gate closing takes the map down (MapLibre lets go of the file);
+        // opening it decides again and builds a fresh map, like a new revision.
+        .onReceive(NotificationCenter.default.publisher(for: StreetStore.writingDidChange, object: store)
+            .receive(on: DispatchQueue.main)) { _ in revision += 1 }
         #else
         RouteCanvas(points: points, aspectRatio: aspectRatio)
         #endif
@@ -69,10 +73,13 @@ public struct RouteMap: View {
     /// appearance change, not on every GPS fix.
     private func mapStyle(_ store: StreetStore) -> Data? {
         let dark = colorScheme == .dark
+        let writing = store.isWriting
         let key = StyleMemo.Key(bounds: points.count >= 2 ? MapBounds.around(points) : nil,
-                                revision: revision, dark: dark, storeURL: store.fileURL)
+                                revision: revision, writing: writing, dark: dark, storeURL: store.fileURL)
         return memo.style(for: key) {
-            let decision = RouteMapDecision.decide(points: points) { (try? store.covers($0)) ?? false }
+            let decision = RouteMapDecision.decide(points: points, writing: writing) {
+                (try? store.covers($0)) ?? false
+            }
             guard decision == .map else { return nil }
             return try? MapStyle.json(dark: dark, storeURL: store.fileURL)
         }
@@ -122,6 +129,7 @@ final class StyleMemo {
     struct Key: Equatable {
         var bounds: MapBounds?
         var revision: Int
+        var writing: Bool
         var dark: Bool
         var storeURL: URL
     }

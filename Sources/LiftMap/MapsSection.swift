@@ -114,17 +114,15 @@ public struct MapsSection: View {
                     .receive(on: DispatchQueue.main)) { _ in reload() }
                 .sheet(item: $sheet) { request in
                     StreetsSheet(plan: request.plan, name: request.name, store: store, mode: request.mode) { area in
-                        if area != nil, let old = request.replacing { try? store.deleteArea(old) }
                         sheet = nil
-                        reload()
+                        if area != nil, let old = request.replacing { delete(old) } else { reload() }
                     }
                 }
                 .alert(deleting.map { "Delete \($0.name)?" } ?? "",
                        isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
                     Button("Delete", role: .destructive) {
-                        if let area = deleting { try? store.deleteArea(area.id) }
+                        if let area = deleting { delete(area.id) }
                         deleting = nil
-                        reload()
                     }
                     Button("Cancel", role: .cancel) { deleting = nil }
                 } message: {
@@ -132,6 +130,15 @@ public struct MapsSection: View {
                 }
         } footer: {
             Text(Self.footer)
+        }
+    }
+
+    /// Deletes with the write gate held, after maps on screen have stepped back.
+    private func delete(_ id: UUID) {
+        let store = store
+        Task {
+            try? await store.whileWriting { try store.deleteArea(id) }
+            reload()
         }
     }
 

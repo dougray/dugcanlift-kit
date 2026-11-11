@@ -35,7 +35,8 @@ let package = Package(
             dependencies: [
                 "LiftCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
-            ]
+            ],
+            resources: [.copy("Resources")]
         ),
         .testTarget(
             name: "LiftCoreTests",

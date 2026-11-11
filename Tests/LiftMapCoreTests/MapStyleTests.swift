@@ -52,6 +52,31 @@ final class MapStyleTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(checked, 8)
     }
+
+    /// MapLibre never finishes laying out a tile whose glyph range is missing,
+    /// so every range ships, in the kit's shared copy and in the bundle: an
+    /// empty file where Noto Sans has nothing is no glyphs, not a blank tile.
+    func testEveryGlyphRangeShipsInBothPlaces() throws {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while !FileManager.default.fileExists(atPath: dir.appendingPathComponent("Package.swift").path) {
+            let parent = dir.deletingLastPathComponent()
+            XCTAssertNotEqual(parent, dir, "no Package.swift above the test file")
+            if parent == dir { return }
+            dir = parent
+        }
+        let places = [dir.appendingPathComponent("map/fonts/Noto Sans Regular"),
+                      MapStyle.resourceRoot.appendingPathComponent("fonts/Noto Sans Regular")]
+        for place in places {
+            var missing: [String] = []
+            for start in stride(from: 0, through: 65280, by: 256) {
+                let name = "\(start)-\(start + 255).pbf"
+                if !FileManager.default.fileExists(atPath: place.appendingPathComponent(name).path) { missing.append(name) }
+            }
+            XCTAssertEqual(missing, [], place.path)
+            let pbfs = try FileManager.default.contentsOfDirectory(atPath: place.path).filter { $0.hasSuffix(".pbf") }
+            XCTAssertEqual(pbfs.count, 256, place.path)
+        }
+    }
 }
 
 final class RouteMapDecisionTests: XCTestCase {

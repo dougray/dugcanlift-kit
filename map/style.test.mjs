@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { manifest, mapFiles } from "./write-checksum.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const styles = { light: "style-light.json", dark: "style-dark.json" };
@@ -57,20 +58,32 @@ test("roads stay thinner than the 5 px route", () => {
 });
 
 test("the checksum file matches every map file", () => {
-  const files = [];
-  const walk = (d) => {
-    for (const n of readdirSync(d)) {
-      const p = join(d, n);
-      if (statSync(p).isDirectory()) walk(p); else files.push(p);
-    }
-  };
-  walk(here);
-  const rels = files.map((p) => relative(here, p).split(sep).join("/"))
-    .filter((r) => r !== "map-files.sha256" && r !== "write-checksum.mjs" && !r.endsWith(".test.mjs"))
-    .sort();
-  const expected = rels.map((r) =>
-    `${createHash("sha256").update(readFileSync(join(here, r))).digest("hex")}  ${r}`).join("\n") + "\n";
-  assert.equal(text("map-files.sha256"), expected);
+  const rels = mapFiles(here);
+  assert.equal(text("map-files.sha256"), manifest(here));
   assert.ok(rels.includes("style-light.json") && rels.includes("fonts/OFL.txt"));
-  assert.equal(rels.filter((r) => r.endsWith(".pbf")).length, 5);
+  assert.equal(rels.filter((r) => r.endsWith(".pbf")).length, 256);
+});
+
+test("every glyph range ships, empty where Noto has nothing", () => {
+  // MapLibre Native never finishes laying out a tile whose glyph range is
+  // missing, so the street draws blank; an empty range is no glyphs.
+  for (let start = 0; start <= 65280; start += 256) {
+    const f = join(here, "fonts", "Noto Sans Regular", `${start}-${start + 255}.pbf`);
+    assert.ok(statSync(f).isFile(), f);
+  }
+});
+
+test("dotfiles never enter the manifest", () => {
+  const dir = mkdtempSync(join(tmpdir(), "map-files-"));
+  try {
+    mkdirSync(join(dir, "fonts"));
+    writeFileSync(join(dir, "style-light.json"), "{}");
+    writeFileSync(join(dir, ".DS_Store"), "x");
+    writeFileSync(join(dir, "fonts", ".DS_Store"), "x");
+    mkdirSync(join(dir, ".hidden"));
+    writeFileSync(join(dir, ".hidden", "a.pbf"), "x");
+    assert.deepEqual(mapFiles(dir), ["style-light.json"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

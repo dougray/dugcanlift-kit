@@ -5,7 +5,7 @@ public enum MapStyle {
     public struct MissingResource: Error { public let name: String }
 
     static var resourceRoot: URL {
-        Bundle.module.resourceURL!.appendingPathComponent("Resources", isDirectory: true)
+        Bundle.module.resourceURL!.appendingPathComponent("MapFiles", isDirectory: true)
     }
 
     /// `mbtiles://` plus the percent-encoded path; MapLibre decodes it again.

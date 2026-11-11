@@ -1,11 +1,34 @@
 # LiftKit
 
-Shared Swift code for the DUGCANLIFT apps. Two products:
+Shared Swift code for the DUGCANLIFT apps. Four products:
 
-- **`LiftCore`** — domain models, wire codecs, theme, day keys. No SQLite
-  dependency, so the LIFT widget extension can link it.
+- **`LiftCore`** — domain models, wire codecs, theme, day keys, `RouteCanvas`.
+  No SQLite dependency and no MapLibre, so the LIFT widget extension and
+  Coach's share extension can link it.
 - **`LiftReference`** — the USDA and exercise reference databases, and the
   GRDB layer over them. Apps only; a widget never opens SQLite.
+- **`LiftMapCore`** — offline street maps without a view: tile maths, area
+  plans, the one MBTiles store of downloaded areas (GRDB), the local-file
+  styles and fonts, and `MapDownload`, the only code in the kit allowed to
+  make a request (to OpenFreeMap's tile host, when the person starts a
+  download). Apps only.
+- **`LiftMap`** — the views: `RouteMap` (the route over downloaded streets,
+  or `RouteCanvas` when no area covers it), `StreetsSheet`, `MapsSection`,
+  and `MapNetworkGuard`, which apps call once at launch so MapLibre itself
+  can reach no server. Depends on MapLibre Native
+  (`maplibre-gl-native-distribution`, exactly 6.31.0), iOS only; on a Mac
+  `RouteMap` draws the plain line. Apps only.
+
+Which target may link which:
+
+| Target | `LiftCore` | `LiftReference` | `LiftMapCore` | `LiftMap` |
+|---|---|---|---|---|
+| LIFT iPhone app, Coach iPhone app | yes | yes | yes | yes |
+| LIFT widget extension | yes | never | never | never |
+| Coach share extension | yes | never | never | never |
+
+A widget or a share extension never links a map product: MapLibre is about
+8-9 MB, and the store is SQLite, which neither extension opens.
 
 Consumed by [`lift-ios`](https://github.com/dougray/dugcanlift-lift-ios) and
 [`coach-ios`](https://github.com/dougray/dugcanlift-coach-ios). Both pin a

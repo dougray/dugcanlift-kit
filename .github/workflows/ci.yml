@@ -32,6 +32,12 @@ jobs:
       - name: Unit tests
         run: swift test
 
+      # LiftMap's MapLibre code is iOS only (the dependency carries an iOS
+      # platform condition), so swift test on the Mac never compiles it. This
+      # does, and it signs the resource bundles the way an app build will.
+      - name: LiftMap builds for iOS
+        run: xcodebuild -scheme LiftMap -destination 'generic/platform=iOS Simulator' build
+
   data:
     name: Road Food data
     # Plain node, no Xcode: this job is the one that fails when road-food.json

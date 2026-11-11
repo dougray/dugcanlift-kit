@@ -40,7 +40,10 @@ before its area is begun to its last tile; a delete) raises the gate first.
 `RouteMap` sees it and draws the plain line, which takes its map view down;
 the map view reports itself closed as it goes. The writer waits for the count
 of open maps to reach zero (`awaitMapsClosed`, two seconds at most), then
-writes. When the gate opens, the maps come back. A map that has stepped back
+writes. A map asks before it reads (`mapOpened`), under the same lock as the
+gate, and is refused while a write is in progress: one that decided to draw
+just before the gate rose starts empty, reads nothing, and shows the plain line
+until the gate opens. When the gate opens, the maps come back. A map that has stepped back
 stops reading the file; MapLibre may keep an idle connection to it, which
 holds no lock in DELETE journal mode and is harmless. The store's 5 s busy
 timeout and its retry on a lock error stay underneath, for a map that did not

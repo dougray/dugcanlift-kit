@@ -89,7 +89,8 @@ public struct RouteMap: View {
         ZStack(alignment: .bottomTrailing) {
             Theme.background
             StreetMapView(points: points, style: style, dark: colorScheme == .dark, revision: revision,
-                          interactive: interactive, store: store)
+                          interactive: interactive, store: store,
+                          refused: { DispatchQueue.main.async { revision += 1 } })
             Text(Self.attribution)
                 .font(Theme.detail)
                 .foregroundStyle(Theme.textSecondary)
@@ -169,9 +170,17 @@ struct StreetMapView: UIViewRepresentable {
     /// download added are read rather than remembered as empty.
     let revision: Int
     let interactive: Bool
-    /// Told when this map opens the file and when it is gone, so a writer
-    /// can wait for maps to step back (`StreetStore.awaitMapsClosed`).
+    /// Asked before this map reads the file and told when it is gone, so a
+    /// writer can wait for maps to step back (`StreetStore.awaitMapsClosed`).
     let store: StreetStore
+    /// Called when the store refused this map because a write began after
+    /// RouteMap decided to draw it: RouteMap decides again (the line, while
+    /// the write lasts; the map again when the gate opens).
+    let refused: () -> Void
+
+    /// A style with nothing in it: no source, no file, no request. What a
+    /// refused map shows until it is replaced.
+    static let emptyStyle = #"{"version":8,"sources":{},"layers":[]}"#
 
     static let lineWidth: CGFloat = 5
     static let startRadius: CGFloat = 5   // a 10 pt dot
@@ -182,18 +191,24 @@ struct StreetMapView: UIViewRepresentable {
     func makeUIView(context: Context) -> MLNMapView {
         MapNetworkGuard.install()
         let coordinator = context.coordinator
-        coordinator.opened(store)
         coordinator.points = points
         coordinator.dark = dark
         coordinator.revision = revision
-        // Made with the local style from the start: a map view made without
-        // one loads MapLibre's default style, which is a server's. The style
-        // goes in as a file; if the file cannot be written, as text.
+        // Made with a style from the start: a map view made without one loads
+        // MapLibre's default style, which is a server's. The streets' style
+        // goes in as a file (if the file cannot be written, as text), and only
+        // when the store lets this map read; refused, it starts empty.
         let view: RouteMapUIView
-        if let file = coordinator.writeStyle(style) {
-            view = RouteMapUIView(frame: .zero, styleURL: file)
+        if coordinator.acquire(store) {
+            coordinator.loaded = true
+            if let file = coordinator.writeStyle(style) {
+                view = RouteMapUIView(frame: .zero, styleURL: file)
+            } else {
+                view = RouteMapUIView(frame: .zero, styleJSON: String(decoding: style, as: UTF8.self))
+            }
         } else {
-            view = RouteMapUIView(frame: .zero, styleJSON: String(decoding: style, as: UTF8.self))
+            view = RouteMapUIView(frame: .zero, styleJSON: Self.emptyStyle)
+            refused()
         }
         view.delegate = coordinator
         view.showsUserLocation = false
@@ -213,6 +228,20 @@ struct StreetMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         view.isScrollEnabled = interactive
         view.isZoomEnabled = interactive
+        if !coordinator.loaded {
+            // Refused when made: ask again, and load the streets only if granted.
+            guard coordinator.acquire(store) else { return }
+            coordinator.loaded = true
+            coordinator.dark = dark
+            coordinator.revision = revision
+            coordinator.points = points
+            if let file = coordinator.writeStyle(style) {
+                view.styleURL = file
+            } else {
+                view.styleJSON = String(decoding: style, as: UTF8.self)
+            }
+            return
+        }
         if dark != coordinator.dark || revision != coordinator.revision {
             coordinator.dark = dark
             coordinator.revision = revision
@@ -241,19 +270,22 @@ struct StreetMapView: UIViewRepresentable {
         var points: [OutdoorShareCoordinate] = []
         var dark = false
         var revision = 0
+        /// True once the streets' style is loaded; a refused map has none.
+        var loaded = false
         private var styleFile: URL?
-        /// The store this map told it was open, until it says it is gone.
-        private var openStore: StreetStore?
+        /// This map's claim on the file; a refused one is not held and is
+        /// never given back.
+        private var lease: MapLease?
 
-        func opened(_ store: StreetStore) {
-            guard openStore == nil else { return }
-            store.mapOpened()
-            openStore = store
+        /// True when this map may read the file: already granted, or granted now.
+        func acquire(_ store: StreetStore) -> Bool {
+            if lease == nil { lease = MapLease(store: store) }
+            return lease!.acquire()
         }
 
         func closed() {
-            openStore?.mapClosed()
-            openStore = nil
+            lease?.release()
+            lease = nil
         }
 
 
@@ -353,6 +385,7 @@ struct StreetMapView: UIViewRepresentable {
 
         nonisolated func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             MainActor.assumeIsolated {
+                guard loaded else { return }   // the empty style of a refused map
                 showRoute(on: mapView)
                 fit(mapView)
             }

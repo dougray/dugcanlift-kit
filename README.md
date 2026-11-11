@@ -1,11 +1,53 @@
 # LiftKit
 
-Shared Swift code for the DUGCANLIFT apps. Two products:
+Shared Swift code for the DUGCANLIFT apps. Four products:
 
-- **`LiftCore`** — domain models, wire codecs, theme, day keys. No SQLite
-  dependency, so the LIFT widget extension can link it.
+- **`LiftCore`** — domain models, wire codecs, theme, day keys, `RouteCanvas`.
+  No SQLite dependency and no MapLibre, so the LIFT widget extension and
+  Coach's share extension can link it.
 - **`LiftReference`** — the USDA and exercise reference databases, and the
   GRDB layer over them. Apps only; a widget never opens SQLite.
+- **`LiftMapCore`** — offline street maps without a view: tile maths, area
+  plans, the one MBTiles store of downloaded areas (GRDB), the local-file
+  styles and fonts, and `MapDownload`, the only code in the kit allowed to
+  make a request (to OpenFreeMap's tile host, when the person starts a
+  download). Apps only.
+- **`LiftMap`** — the views: `RouteMap` (the route over downloaded streets,
+  or `RouteCanvas` when no area covers it), `StreetsSheet`, `MapsSection`,
+  and `MapNetworkGuard`, which apps call once at launch so MapLibre itself
+  can reach no server. Depends on MapLibre Native
+  (`maplibre-gl-native-distribution`, exactly 6.31.0), iOS only; on a Mac
+  `RouteMap` draws the plain line. Apps only.
+
+Which target may link which:
+
+| Target | `LiftCore` | `LiftReference` | `LiftMapCore` | `LiftMap` |
+|---|---|---|---|---|
+| LIFT iPhone app, Coach iPhone app | yes | yes | yes | yes |
+| LIFT widget extension | yes | never | never | never |
+| Coach share extension | yes | never | never | never |
+
+A widget or a share extension never links a map product: MapLibre is about
+8-9 MB, and the store is SQLite, which neither extension opens.
+
+**Maps step back while streets download.** MapLibre reads the MBTiles store
+in the same process as the download that writes it, through the same SQLite,
+opened read-only and with no busy timeout: a tile read during one of our
+commits fails at once, and a read held during our write makes the write fail.
+So the store has a write gate and a count of the maps drawing it, both shared
+by every `StreetStore` open on the same file. A writer (a download, from
+before its area is begun to its last tile; a delete) raises the gate first.
+`RouteMap` sees it and draws the plain line, which takes its map view down;
+the map view reports itself closed as it goes. The writer waits for the count
+of open maps to reach zero (`awaitMapsClosed`, two seconds at most), then
+writes. A map asks before it reads (`mapOpened`), under the same lock as the
+gate, and is refused while a write is in progress: one that decided to draw
+just before the gate rose starts empty, reads nothing, and shows the plain line
+until the gate opens. When the gate opens, the maps come back. A map that has stepped back
+stops reading the file; MapLibre may keep an idle connection to it, which
+holds no lock in DELETE journal mode and is harmless. The store's 5 s busy
+timeout and its retry on a lock error stay underneath, for a map that did not
+close in time.
 
 Consumed by [`lift-ios`](https://github.com/dougray/dugcanlift-lift-ios) and
 [`coach-ios`](https://github.com/dougray/dugcanlift-coach-ios). Both pin a

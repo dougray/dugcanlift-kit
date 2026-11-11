@@ -11,6 +11,23 @@ final class NoNetworkTests: XCTestCase {
     static let forbidden = ["URLSession", "URLRequest", "NWConnection",
                             "import Network", "import MapKit", "import WebKit", "AsyncImage("]
 
+    /// Map code that would reach a server through MapLibre or Foundation rather
+    /// than `URLSession`: MapLibre's offline storage (a cache of remote URLs)
+    /// and its snapshotter (which loads a style of its own), and a file read
+    /// from an http URL. Checked in every file under the two map folders, the
+    /// allowance files included; the Kotlin NoNetworkTest holds the same list.
+    static let mapForbidden = ["MLNOfflineStorage", "MLNMapSnapshotter", "contentsOf: URL(string: \"http"]
+
+    static func mapOffences(in code: String) -> [String] {
+        let stripped = stripComments(code)
+        return mapForbidden.filter { stripped.contains($0) }
+    }
+
+    static func stripComments(_ code: String) -> String {
+        let line = code.replacingOccurrences(of: "//[^\n]*", with: "", options: .regularExpression)
+        return line.replacingOccurrences(of: "/\\*[\\s\\S]*?\\*/", with: "", options: .regularExpression)
+    }
+
     static func offences(in code: String) -> [String] {
         // Strip line comments first: a block comment opening inside a line comment (e.g. `// Sources/*`)
         // must not delete real code up to a later `*/`. Stripping line comments first can only leave
@@ -50,5 +67,51 @@ final class NoNetworkTests: XCTestCase {
         }
         XCTAssertGreaterThan(checked, 10, "found too little source to check under \(root.path)")
         XCTAssertEqual(found, [], "a network API in the kit -- see the in-house rule")
+    }
+
+    /// Only the person's street-map download may reach the network, and only
+    /// its file may name the host (`openfreemap.org`; the attribution text "OpenFreeMap" is not the host). `MapNetworkGuard` (LiftMap) refuses requests.
+    func testOnlyMapDownloadMayReachTheNetwork() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let allowedNetwork: Set<String> = ["Sources/LiftMapCore/MapDownload.swift", "Sources/LiftMap/MapNetworkGuard.swift"]
+        let allowedHost: Set<String> = ["Sources/LiftMapCore/MapDownload.swift"]
+        var found: [String] = []
+        var checked = 0
+        for folder in ["Sources/LiftCore", "Sources/LiftReference", "Sources/LiftMapCore", "Sources/LiftMap"] {
+            let dir = root.appendingPathComponent(folder)
+            guard let walker = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil) else { continue }
+            for case let file as URL in walker where file.pathExtension == "swift" {
+                checked += 1
+                let rel = folder + "/" + file.path.replacingOccurrences(of: dir.path + "/", with: "")
+                let code = try String(contentsOf: file, encoding: .utf8)
+                if !allowedNetwork.contains(rel) {
+                    found += Self.offences(in: code).map { "\(rel): \($0)" }
+                }
+                if folder.hasPrefix("Sources/LiftMap") {
+                    found += Self.mapOffences(in: code).map { "\(rel): \($0)" }
+                }
+                if !allowedHost.contains(rel), Self.stripComments(code).lowercased().contains("openfreemap.org") {
+                    found.append("\(rel): names the tile host")
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 10)
+        XCTAssertEqual(found, [], "a network API or the tile host outside the one download file")
+    }
+
+    func testTheMapScannerCatchesCodeAndIgnoresComments() {
+        XCTAssertEqual(Self.mapOffences(in: "let s = MLNOfflineStorage.shared"), ["MLNOfflineStorage"])
+        XCTAssertEqual(Self.mapOffences(in: "let s = MLNMapSnapshotter(options: o)"), ["MLNMapSnapshotter"])
+        XCTAssertEqual(Self.mapOffences(in: "let d = try Data(contentsOf: URL(string: \"https://a.example/x\")!)"),
+                       ["contentsOf: URL(string: \"http"])
+        XCTAssertEqual(Self.mapOffences(in: "// MLNOfflineStorage is not used\nlet x = 1"), [])
+        XCTAssertEqual(Self.mapOffences(in: "/* MLNMapSnapshotter */\nlet x = 1"), [])
+        XCTAssertEqual(Self.mapOffences(in: "let d = try Data(contentsOf: fileURL)"), [])
+    }
+
+    func testTheHostGuardCatchesCodeAndIgnoresComments() {
+        XCTAssertTrue(Self.stripComments("let h = \"tiles.OpenFreeMap.org\"").lowercased().contains("openfreemap.org"))
+        XCTAssertFalse(Self.stripComments("// openfreemap.org\nlet x = 1").lowercased().contains("openfreemap.org"))
     }
 }

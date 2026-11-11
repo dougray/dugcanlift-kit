@@ -10,6 +10,8 @@ let package = Package(
         .library(name: "LiftCore", targets: ["LiftCore"]),
         // GRDB plus 2.3 MB of reference data. Apps only.
         .library(name: "LiftReference", targets: ["LiftReference"]),
+        // Offline street-map tiles: pure maths and a GRDB-backed store. No UI.
+        .library(name: "LiftMapCore", targets: ["LiftMapCore"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
@@ -28,6 +30,13 @@ let package = Package(
                 .copy("Resources/recipes.db"),
             ]
         ),
+        .target(
+            name: "LiftMapCore",
+            dependencies: [
+                "LiftCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ]
+        ),
         .testTarget(
             name: "LiftCoreTests",
             dependencies: ["LiftCore"],
@@ -35,5 +44,6 @@ let package = Package(
             resources: [.copy("Fixtures")]
         ),
         .testTarget(name: "LiftReferenceTests", dependencies: ["LiftReference"]),
+        .testTarget(name: "LiftMapCoreTests", dependencies: ["LiftMapCore", "LiftCore"]),
     ]
 )

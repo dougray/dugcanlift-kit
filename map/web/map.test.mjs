@@ -401,7 +401,9 @@ test("every request goes to one host, with no cookies and no referrer", async ()
   await M.download(M.plan(39.7392, -104.9903, 10), "X", () => {});
   assert.ok(fetch.calls.length > 1);
   for (const { url, init } of fetch.calls) {
-    assert.ok(url.startsWith("https://tiles.openfreemap.org/"), url);
+    const parsed = new URL(url);
+    assert.equal(parsed.protocol, "https:", url);
+    assert.equal(parsed.host, "tiles.openfreemap.org", url);
     assert.equal(init.credentials, "omit");
     assert.equal(init.referrerPolicy, "no-referrer");
     assert.equal(init.redirect, "error");
@@ -470,6 +472,17 @@ test("resuming an area that was deleted is refused before any request", async ()
   assert.equal(fetch.calls.length, 0);
 });
 
+test("urlsIn finds every address, of either case, up to its end", () => {
+  const text = 'a HTTPS://Example.com/x"b \'http://a.test/y\' `https://c.test/z` HTTP://d.test/w\nhttps://e.test/v\tend\\';
+  assert.deepEqual(urlsIn(text), [
+    "http://a.test/y", "HTTP://d.test/w",
+    "HTTPS://Example.com/x", "https://c.test/z", "https://e.test/v",
+  ]);
+  assert.deepEqual(urlsIn('x("http://f.test/a\\b")'), ["http://f.test/a"]);
+  assert.deepEqual(urlsIn(""), []);
+  assert.deepEqual(urlsIn("no address here, not even http:/ or https:"), []);
+});
+
 test("only download reaches the network", () => {
   const start = src.indexOf("// BEGIN download");
   const end = src.indexOf("// END download");
@@ -479,15 +492,17 @@ test("only download reaches the network", () => {
   const fetches = [...src.matchAll(/fetch\(/g)].map((m) => m.index);
   assert.ok(fetches.length >= 1);
   for (const i of fetches) assert.ok(i > start && i < end, "fetch( outside download");
-  assert.ok(inside.includes("https://tiles.openfreemap.org/"));
   const urls = urlsIn(inside);
-  assert.ok(urls.length >= 1);
+  assert.ok(urls.some((u) => new URL(u).host === "tiles.openfreemap.org"), "the download names the tile host");
   for (const url of urls) {
     const parsed = new URL(url);
     assert.equal(parsed.protocol, "https:", url);
     assert.equal(parsed.host, "tiles.openfreemap.org", url);
   }
-  assert.ok(!outside.toLowerCase().includes("openfreemap.org"), "openfreemap.org outside download");
+  // "OpenFreeMap" is the credit the license asks for and appears outside as words;
+  // the host would be the name followed by a dot.
+  const afterName = outside.toLowerCase().split("openfreemap").slice(1);
+  assert.ok(afterName.every((rest) => rest.charAt(0) !== "."), "openfreemap.org outside download");
   assert.deepEqual(urlsIn(outside), [], "an address outside download");
   for (const word of ["XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource", "navigator.connection"]) {
     assert.ok(!src.includes(word), word);

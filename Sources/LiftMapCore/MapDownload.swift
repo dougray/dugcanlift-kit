@@ -19,6 +19,17 @@ extension URLSession {
     }()
 }
 
+/// Refuses any redirect that leaves the host or the https scheme; the 3xx then
+/// comes back as the response and reads as `http(status)`.
+private final class StayOnHost: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(MapDownload.allowed(request.url) == nil ? nil : request)
+    }
+}
+
 /// The one request this package may make, and only when the person starts a
 /// street-map download: the TileJSON and the tiles, from `host`, nothing else.
 public actor MapDownload {
@@ -33,7 +44,7 @@ public actor MapDownload {
         self.session = session
     }
 
-    private static func allowed(_ url: URL?) -> URL? {
+    static func allowed(_ url: URL?) -> URL? {
         guard let url, url.scheme == "https", url.host == host else { return nil }
         return url
     }
@@ -44,7 +55,7 @@ public actor MapDownload {
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = false
         request.setValue("LIFT-maps/1", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request, delegate: StayOnHost())
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         return (status, data)
     }

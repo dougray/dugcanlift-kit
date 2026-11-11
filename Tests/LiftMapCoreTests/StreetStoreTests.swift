@@ -26,6 +26,15 @@ final class StreetStoreTests: XCTestCase {
         XCTAssertEqual(try count(store, "SELECT COUNT(*) FROM tiles WHERE zoom_level = 14 AND tile_column = 3413 AND tile_row = 10165"), 1)
     }
 
+    func testAnUnfinishedAreaIsListedSeparately() throws {
+        let store = try makeStore()
+        let id = try store.beginArea(plan(), name: "A")
+        XCTAssertEqual(try store.areas().count, 0)
+        XCTAssertEqual(try store.unfinishedAreas().map(\.id), [id])
+        try store.finishArea(id)
+        XCTAssertEqual(try store.unfinishedAreas().count, 0)
+    }
+
     func testDeletingOneAreaKeepsTilesAnotherStillOwns() throws {
         let store = try makeStore()
         let a = try store.beginArea(plan(), name: "A")

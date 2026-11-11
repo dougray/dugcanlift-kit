@@ -117,18 +117,26 @@ public final class StreetStore: Sendable {
     }
 
     /// Finished areas, newest first.
-    public func areas() throws -> [StreetArea] {
-        try queue.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM areas WHERE finished_at IS NOT NULL ORDER BY finished_at DESC")
-                .compactMap { row -> StreetArea? in
-                    guard let id = UUID(uuidString: row["id"]) else { return nil }
-                    let finished: Double = row["finished_at"]
-                    return StreetArea(
-                        id: id, name: row["name"],
-                        detail: MapBounds(south: row["south"], west: row["west"], north: row["north"], east: row["east"]),
-                        detailKm: row["detail_km"], downloadedAt: Date(timeIntervalSince1970: finished),
-                        bytes: row["bytes"])
-                }
+    public func areas() throws -> [StreetArea] { try list(finished: true) }
+
+    /// Areas begun and not finished (an interrupted download), newest first;
+    /// `downloadedAt` is when each began. `MapDownload.resume` takes one of these.
+    public func unfinishedAreas() throws -> [StreetArea] { try list(finished: false) }
+
+    private func list(finished: Bool) throws -> [StreetArea] {
+        let sql = finished
+            ? "SELECT * FROM areas WHERE finished_at IS NOT NULL ORDER BY finished_at DESC"
+            : "SELECT * FROM areas WHERE finished_at IS NULL ORDER BY started_at DESC"
+        return try queue.read { db in
+            try Row.fetchAll(db, sql: sql).compactMap { row -> StreetArea? in
+                guard let id = UUID(uuidString: row["id"]) else { return nil }
+                let at: Double = finished ? row["finished_at"] : row["started_at"]
+                return StreetArea(
+                    id: id, name: row["name"],
+                    detail: MapBounds(south: row["south"], west: row["west"], north: row["north"], east: row["east"]),
+                    detailKm: row["detail_km"], downloadedAt: Date(timeIntervalSince1970: at),
+                    bytes: row["bytes"])
+            }
         }
     }
 

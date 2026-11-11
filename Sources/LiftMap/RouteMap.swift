@@ -50,7 +50,7 @@ public struct RouteMap: View {
         #if canImport(MapLibre) && os(iOS)
         Group {
             if let store, let style = mapStyle(store) {
-                framed(map(style: style))
+                framed(map(style: style, store: store))
             } else {
                 RouteCanvas(points: points, aspectRatio: aspectRatio)
             }
@@ -85,11 +85,11 @@ public struct RouteMap: View {
         }
     }
 
-    private func map(style: Data) -> some View {
+    private func map(style: Data, store: StreetStore) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Theme.background
             StreetMapView(points: points, style: style, dark: colorScheme == .dark, revision: revision,
-                          interactive: interactive)
+                          interactive: interactive, store: store)
             Text(Self.attribution)
                 .font(Theme.detail)
                 .foregroundStyle(Theme.textSecondary)
@@ -169,6 +169,9 @@ struct StreetMapView: UIViewRepresentable {
     /// download added are read rather than remembered as empty.
     let revision: Int
     let interactive: Bool
+    /// Told when this map opens the file and when it is gone, so a writer
+    /// can wait for maps to step back (`StreetStore.awaitMapsClosed`).
+    let store: StreetStore
 
     static let lineWidth: CGFloat = 5
     static let startRadius: CGFloat = 5   // a 10 pt dot
@@ -179,6 +182,7 @@ struct StreetMapView: UIViewRepresentable {
     func makeUIView(context: Context) -> MLNMapView {
         MapNetworkGuard.install()
         let coordinator = context.coordinator
+        coordinator.opened(store)
         coordinator.points = points
         coordinator.dark = dark
         coordinator.revision = revision
@@ -228,6 +232,7 @@ struct StreetMapView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ view: MLNMapView, coordinator: Coordinator) {
+        coordinator.closed()
         coordinator.removeStyleFile()
     }
 
@@ -237,6 +242,20 @@ struct StreetMapView: UIViewRepresentable {
         var dark = false
         var revision = 0
         private var styleFile: URL?
+        /// The store this map told it was open, until it says it is gone.
+        private var openStore: StreetStore?
+
+        func opened(_ store: StreetStore) {
+            guard openStore == nil else { return }
+            store.mapOpened()
+            openStore = store
+        }
+
+        func closed() {
+            openStore?.mapClosed()
+            openStore = nil
+        }
+
 
         static let routeSource = "lift-route"
         static let startSource = "lift-route-start"

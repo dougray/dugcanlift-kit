@@ -34,12 +34,17 @@ A widget or a share extension never links a map product: MapLibre is about
 in the same process as the download that writes it, through the same SQLite,
 opened read-only and with no busy timeout: a tile read during one of our
 commits fails at once, and a read held during our write makes the write fail.
-So `StreetStore` has a write gate. Every write, every download (from before
-its area is begun to its last tile, however it ends) and every delete hold it,
-and while it is held `RouteMap` draws the plain line, which takes the map view
-down so MapLibre lets go of the file. When the gate opens, the map comes back.
-The store's 5 s busy timeout and its retry on a lock error stay underneath as
-a second line of defence.
+So the store has a write gate and a count of the maps drawing it, both shared
+by every `StreetStore` open on the same file. A writer (a download, from
+before its area is begun to its last tile; a delete) raises the gate first.
+`RouteMap` sees it and draws the plain line, which takes its map view down;
+the map view reports itself closed as it goes. The writer waits for the count
+of open maps to reach zero (`awaitMapsClosed`, two seconds at most), then
+writes. When the gate opens, the maps come back. A map that has stepped back
+stops reading the file; MapLibre may keep an idle connection to it, which
+holds no lock in DELETE journal mode and is harmless. The store's 5 s busy
+timeout and its retry on a lock error stay underneath, for a map that did not
+close in time.
 
 Consumed by [`lift-ios`](https://github.com/dougray/dugcanlift-lift-ios) and
 [`coach-ios`](https://github.com/dougray/dugcanlift-coach-ios). Both pin a

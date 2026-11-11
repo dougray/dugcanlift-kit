@@ -203,19 +203,23 @@ public struct StreetsSheet: View {
             running?.cancel()
             cancelling = true
             let store = store
-            // Held across the wait and the delete, so the gate does not open
-            // between the download stopping and its area going.
+            // Taken now, before the download lets go of the gate, so it does
+            // not open between the download stopping and its area going.
             store.beginWriting()
             Task {
                 defer { store.endWriting() }
-                _ = await running?.result
-                // Decided again: the download may have finished and been handed over meanwhile.
-                guard DownloadCancel.decide(finished: finished, cancelling: false,
-                                            sheetBeganArea: sheetBeganArea, areaID: id) == .deleteThenClose(id) else {
-                    return
-                }
-                try? store.deleteArea(id)
-                onDone(nil)
+                // The same path as every writer: gate, wait for maps, write.
+                let deleted = (try? await store.whileWriting { () async throws -> Bool in
+                    _ = await running?.result
+                    // Decided again: the download may have finished and been handed over meanwhile.
+                    guard DownloadCancel.decide(finished: finished, cancelling: false,
+                                                sheetBeganArea: sheetBeganArea, areaID: id) == .deleteThenClose(id) else {
+                        return false
+                    }
+                    try store.deleteArea(id)
+                    return true
+                }) ?? true
+                if deleted { onDone(nil) }
             }
         }
     }

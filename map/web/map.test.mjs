@@ -786,3 +786,13 @@ test("a cancel is reported as a cancel even when removing the area fails", async
   assert.ok(err.deleteError, "the failed clean-up rides along");
   assert.match(err.deleteError.message, /Quota/);
 });
+
+test("Denver's whole plans are the Swift plans, tile for tile and byte for byte", () => {
+  const { M } = load();
+  for (const [km, tiles, bytes] of [[10, 273, 8_110_000], [25, 1_125, 23_790_000], [50, 4_069, 79_430_000]]) {
+    const p = M.plan(39.7392, -104.9903, km);
+    assert.equal(p.tiles.length, tiles, `${km} km tiles`);
+    assert.equal(M.estimateBytes(p), bytes, `${km} km bytes`);
+    assert.equal(p.estimatedBytes, bytes, `${km} km estimatedBytes`);
+  }
+});

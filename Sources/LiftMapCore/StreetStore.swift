@@ -78,8 +78,14 @@ public final class StreetStore: Sendable {
         if coordination.addWriter(-1) == 0 { post(Self.writingDidChange) }
     }
 
-    /// A map view has opened this file (`RouteMap`, as its MapLibre view is made).
-    public func mapOpened() { _ = coordination.addMap(1) }
+    /// A map view asks to open this file (`RouteMap`, as its MapLibre view is
+    /// made). Decided under the same lock as the write gate: while a write is
+    /// in progress the map is refused, is not counted and must not load a
+    /// style or read the file -- a writer already past `awaitMapsClosed` would
+    /// otherwise have MapLibre reading under it. A refused map needs no
+    /// `mapClosed`; it asks again when the gate opens (`MapLease`).
+    @discardableResult
+    public func mapOpened() -> Bool { coordination.openMap() }
 
     /// That map view is gone (as its MapLibre view is dismantled); extra calls are ignored.
     public func mapClosed() { _ = coordination.addMap(-1) }
@@ -337,6 +343,14 @@ final class FileCoordination: @unchecked Sendable {
         return Self.add(delta, to: &mapCount)
     }
 
+    /// Counts a map open, unless a writer holds the gate.
+    func openMap() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard writerCount == 0 else { return false }
+        mapCount += 1
+        return true
+    }
+
     private static func add(_ delta: Int, to count: inout Int) -> Int {
         if delta < 0 && count == 0 { return -1 }
         count += delta
@@ -353,5 +367,32 @@ final class FileCoordination: @unchecked Sendable {
     func stores() -> [StreetStore] {
         lock.lock(); defer { lock.unlock() }
         return members.compactMap(\.store)
+    }
+}
+
+/// One map view's claim on the file: acquired when the store lets it open
+/// (never while a write is in progress), released once, and only if it was
+/// granted. `RouteMap`'s MapLibre view holds one; a refused view draws no
+/// streets and asks again on its next update.
+public struct MapLease {
+    public let store: StreetStore
+    public private(set) var isHeld = false
+
+    public init(store: StreetStore) {
+        self.store = store
+    }
+
+    /// True when the map may read the file now: already held, or granted.
+    @discardableResult
+    public mutating func acquire() -> Bool {
+        if !isHeld { isHeld = store.mapOpened() }
+        return isHeld
+    }
+
+    /// Gives the claim back if it was granted; a refused lease gives nothing.
+    public mutating func release() {
+        guard isHeld else { return }
+        store.mapClosed()
+        isHeld = false
     }
 }

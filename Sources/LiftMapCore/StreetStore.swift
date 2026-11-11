@@ -42,15 +42,42 @@ public final class StreetStore: Sendable {
         NotificationCenter.default.post(name: Self.didChange, object: self)
     }
 
+    /// How long a write keeps trying while MapLibre is reading the file.
+    static let lockWait: TimeInterval = 5
+
+    /// A write transaction that waits out a reader. Two cases: a reader in
+    /// another process makes SQLite answer BUSY, which `busyMode` waits out;
+    /// MapLibre in this process opens the file read-only, and Apple's SQLite
+    /// then answers SQLITE_IOERR_LOCK rather than BUSY while that reader holds
+    /// its shared lock (measured on macOS 27's SQLite 3.54), which no busy
+    /// handler sees. Both are retried until `lockWait` has passed. A failed
+    /// attempt has rolled back, and every write here is safe to repeat.
+    private func write<T>(_ updates: (Database) throws -> T) throws -> T {
+        let deadline = Date().addingTimeInterval(Self.lockWait)
+        while true {
+            do {
+                return try queue.write(updates)
+            } catch let error as DatabaseError
+                        where (error.resultCode == .SQLITE_BUSY || error.extendedResultCode == .SQLITE_IOERR_LOCK)
+                        && Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+        }
+    }
+
     public init(fileURL: URL) throws {
         self.fileURL = fileURL
         var config = Configuration()
+        // MapLibre reads this file while a download writes it. In DELETE
+        // journal mode a commit needs every reader gone, so a write waits for
+        // a read to finish rather than failing at once with SQLITE_BUSY.
+        config.busyMode = .timeout(5)
         config.prepareDatabase { db in
             // MapLibre opens the file read-only; a WAL would need write access to -shm.
             _ = try db.execute(sql: "PRAGMA journal_mode = DELETE")
         }
         queue = try DatabaseQueue(path: fileURL.path, configuration: config)
-        try queue.write { db in
+        try write { db in
             try db.execute(sql: """
                 CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT);
                 CREATE TABLE IF NOT EXISTS tiles (
@@ -61,6 +88,10 @@ public final class StreetStore: Sendable {
                     detail_km INT, started_at REAL, finished_at REAL, bytes INT);
                 CREATE TABLE IF NOT EXISTS area_tiles (
                     area_id TEXT, z INT, x INT, y INT, PRIMARY KEY (area_id, z, x, y));
+                -- deleteArea asks, per tile, whether any area still owns it;
+                -- the primary key leads with area_id and cannot answer that.
+                -- IF NOT EXISTS, so a store written before it gains it on open.
+                CREATE INDEX IF NOT EXISTS area_tiles_zxy ON area_tiles (z, x, y);
                 """)
             let meta: [(String, String)] = [
                 ("name", "LIFT streets"), ("format", "pbf"), ("minzoom", "0"), ("maxzoom", "14"),
@@ -91,7 +122,7 @@ public final class StreetStore: Sendable {
 
     public func beginArea(_ plan: StreetAreaPlan, name: String) throws -> UUID {
         let id = UUID()
-        try queue.write { db in
+        try write { db in
             try db.execute(sql: """
                 INSERT INTO areas (id, name, south, west, north, east, detail_km, started_at, finished_at, bytes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0)
@@ -103,7 +134,7 @@ public final class StreetStore: Sendable {
 
     /// Throws `StreetStoreError.unknownArea` for an area with no row.
     public func put(_ data: Data, for tile: TileID, area: UUID) throws {
-        try queue.write { db in
+        try write { db in
             guard try Int.fetchOne(db, sql: "SELECT 1 FROM areas WHERE id = ?", arguments: [area.uuidString]) != nil else {
                 throw StreetStoreError.unknownArea
             }
@@ -123,7 +154,7 @@ public final class StreetStore: Sendable {
     }
 
     public func finishArea(_ id: UUID) throws {
-        try queue.write { db in
+        try write { db in
             let bytes = try Int.fetchOne(db, sql: """
                 SELECT COALESCE(SUM(LENGTH(t.tile_data)), 0) FROM area_tiles a
                 JOIN tiles t ON t.zoom_level = a.z AND t.tile_column = a.x
@@ -161,7 +192,7 @@ public final class StreetStore: Sendable {
     }
 
     public func deleteArea(_ id: UUID) throws {
-        try queue.write { db in
+        try write { db in
             try db.execute(sql: "DELETE FROM area_tiles WHERE area_id = ?", arguments: [id.uuidString])
             try db.execute(sql: """
                 DELETE FROM tiles WHERE NOT EXISTS (

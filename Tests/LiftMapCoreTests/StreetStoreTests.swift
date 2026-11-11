@@ -124,4 +124,63 @@ final class StreetStoreTests: XCTestCase {
         XCTAssertEqual(area.bytes, 2)
         XCTAssertEqual(area.name, "Denver")
     }
+
+    /// MapLibre opens the store read-only, in this process, with no busy
+    /// timeout. Apple's SQLite answers a write made while it holds a read with
+    /// SQLITE_IOERR_LOCK, not BUSY; the write must wait, not fail.
+    func testAWriteWaitsForAReadOnlyReaderInsteadOfFailing() throws {
+        try writeWhileReading(readonly: true)
+    }
+
+    /// The BUSY case (any other reader), which `busyMode` waits out.
+    func testAWriteWaitsForAReadWriteReaderInsteadOfFailing() throws {
+        try writeWhileReading(readonly: false)
+    }
+
+    private func writeWhileReading(readonly: Bool) throws {
+        let store = try makeStore()
+        let id = try store.beginArea(plan(), name: "A")
+        var config = Configuration()
+        config.readonly = readonly
+        let reader = try DatabaseQueue(path: store.fileURL.path, configuration: config)
+        let reading = DispatchSemaphore(value: 0)
+        let done = expectation(description: "reader finished")
+        DispatchQueue.global().async {
+            try? reader.inDatabase { db in
+                try db.execute(sql: "BEGIN")
+                _ = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tiles")   // holds a shared lock
+                reading.signal()
+                Thread.sleep(forTimeInterval: 0.2)
+                try db.execute(sql: "COMMIT")
+            }
+            done.fulfill()
+        }
+        reading.wait()
+        let started = Date()
+        XCTAssertNoThrow(try store.put(Data([1]), for: TileID(z: 3, x: 1, y: 2), area: id))
+        XCTAssertGreaterThan(Date().timeIntervalSince(started), 0.05, "the write should have waited for the reader")
+        wait(for: [done], timeout: 5)
+        XCTAssertTrue(try store.hasTile(TileID(z: 3, x: 1, y: 2), area: id))
+    }
+
+    func testAStoreWrittenBeforeTheIndexGainsItOnOpen() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("streets-\(UUID().uuidString).mbtiles")
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        let old = try DatabaseQueue(path: url.path)
+        try old.write { db in
+            try db.execute(sql: """
+                CREATE TABLE metadata (name TEXT PRIMARY KEY, value TEXT);
+                CREATE TABLE tiles (zoom_level INT, tile_column INT, tile_row INT, tile_data BLOB,
+                    PRIMARY KEY (zoom_level, tile_column, tile_row));
+                CREATE TABLE areas (id TEXT PRIMARY KEY, name TEXT, south REAL, west REAL, north REAL, east REAL,
+                    detail_km INT, started_at REAL, finished_at REAL, bytes INT);
+                CREATE TABLE area_tiles (area_id TEXT, z INT, x INT, y INT, PRIMARY KEY (area_id, z, x, y));
+                """)
+        }
+        try old.close()
+        let indexSQL = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'area_tiles_zxy'"
+        XCTAssertEqual(try DatabaseQueue(path: url.path).read { try Int.fetchOne($0, sql: indexSQL) }, 0)
+        let store = try StreetStore(fileURL: url)
+        XCTAssertEqual(try count(store, indexSQL), 1)
+    }
 }

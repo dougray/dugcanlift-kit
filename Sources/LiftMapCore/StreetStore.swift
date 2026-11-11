@@ -38,6 +38,51 @@ public final class StreetStore: Sendable {
     /// the change. A map drawn over this store decides again on it.
     public static let didChange = Notification.Name("LiftMapStreetsChanged")
 
+    // MARK: The write gate
+
+    /// Posted, with the store as its object, when the store starts being
+    /// written (`isWriting` turns true) and when the last writer is done
+    /// (false), on whichever thread made the change.
+    ///
+    /// MapLibre reads this file in the same process, read-only and with no
+    /// busy timeout: a read during one of our commits fails at once, and a
+    /// read held during our write makes the write fail. So maps step back
+    /// while the store is written -- `RouteMap` draws the plain line until
+    /// the gate opens again -- and MapLibre is never reading while we write.
+    public static let writingDidChange = Notification.Name("LiftMapStreetsWritingChanged")
+
+    /// How long a writing session waits after closing the gate, so a map on
+    /// screen has let go of the file before the first write.
+    public static let settle: TimeInterval = 0.25
+
+    private let gate = WriteGate()
+
+    /// True while any writer holds the gate.
+    public var isWriting: Bool { gate.count > 0 }
+
+    /// Holds the write gate. Counted, so sessions nest: the gate opens only
+    /// when every `beginWriting` has had its `endWriting`. Returns true when
+    /// this call closed an open gate.
+    @discardableResult
+    public func beginWriting() -> Bool {
+        let closed = gate.add(1) == 1
+        if closed { NotificationCenter.default.post(name: Self.writingDidChange, object: self) }
+        return closed
+    }
+
+    /// Releases one hold on the write gate; extra calls are ignored.
+    public func endWriting() {
+        if gate.add(-1) == 0 { NotificationCenter.default.post(name: Self.writingDidChange, object: self) }
+    }
+
+    /// Runs `body` with the gate held, released however it ends. When this
+    /// closed the gate, it first waits `settle` for maps on screen to step back.
+    public func whileWriting<T>(_ body: () async throws -> T) async throws -> T {
+        if beginWriting() { try? await Task.sleep(nanoseconds: UInt64(Self.settle * 1_000_000_000)) }
+        defer { endWriting() }
+        return try await body()
+    }
+
     private func postChange() {
         NotificationCenter.default.post(name: Self.didChange, object: self)
     }
@@ -52,7 +97,14 @@ public final class StreetStore: Sendable {
     /// its shared lock (measured on macOS 27's SQLite 3.54), which no busy
     /// handler sees. Both are retried until `lockWait` has passed. A failed
     /// attempt has rolled back, and every write here is safe to repeat.
+    /// A write, with the write gate held around it (see `beginWriting`).
     private func write<T>(_ updates: (Database) throws -> T) throws -> T {
+        beginWriting()
+        defer { endWriting() }
+        return try retryingWrite(updates)
+    }
+
+    private func retryingWrite<T>(_ updates: (Database) throws -> T) throws -> T {
         let deadline = Date().addingTimeInterval(Self.lockWait)
         while true {
             do {
@@ -77,7 +129,7 @@ public final class StreetStore: Sendable {
             _ = try db.execute(sql: "PRAGMA journal_mode = DELETE")
         }
         queue = try DatabaseQueue(path: fileURL.path, configuration: config)
-        try write { db in
+        try retryingWrite { db in
             try db.execute(sql: """
                 CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT);
                 CREATE TABLE IF NOT EXISTS tiles (
@@ -206,5 +258,24 @@ public final class StreetStore: Sendable {
 
     public func covers(_ bounds: MapBounds) throws -> Bool {
         try areas().contains { $0.detail.intersects(bounds) }
+    }
+}
+
+/// The count behind the write gate.
+final class WriteGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var holds = 0
+
+    var count: Int {
+        lock.lock(); defer { lock.unlock() }
+        return holds
+    }
+
+    /// Adds `delta` and returns the new count, or -1 when an end had no begin.
+    func add(_ delta: Int) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        if delta < 0 && holds == 0 { return -1 }
+        holds += delta
+        return holds
     }
 }

@@ -80,13 +80,15 @@ public actor MapDownload {
 
     public func download(_ plan: StreetAreaPlan, name: String,
                          progress: @Sendable (Int, Int) -> Void) async throws -> StreetArea {
-        let id = try store.beginArea(plan, name: name)
-        return try await run(id, plan: plan, progress: progress)
+        try await store.whileWriting {
+            let id = try store.beginArea(plan, name: name)
+            return try await run(id, plan: plan, progress: progress)
+        }
     }
 
     public func resume(_ areaID: UUID, plan: StreetAreaPlan,
                        progress: @Sendable (Int, Int) -> Void) async throws -> StreetArea {
-        try await run(areaID, plan: plan, progress: progress)
+        try await store.whileWriting { try await run(areaID, plan: plan, progress: progress) }
     }
 
     private func run(_ id: UUID, plan: StreetAreaPlan,

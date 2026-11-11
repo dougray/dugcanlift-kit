@@ -19,7 +19,7 @@ import MapLibre
 /// The route stays the strongest thing on screen: a 5 pt accent line with
 /// round caps, the start dot in the secondary accent (10 pt) and the end dot in
 /// the accent (12 pt), as `RouteCanvas` draws them. The camera fits the whole
-/// route with 24 pt to spare and fits again as the route grows. No location
+/// route (`RouteFitPadding`: 24 pt, 50 pt below for the attribution) and fits again as it grows. No location
 /// dot, no compass, no logo; gestures only when `interactive`.
 public struct RouteMap: View {
     /// OpenStreetMap's licence asks for the first half; OpenFreeMap is credited beside it.
@@ -162,7 +162,6 @@ struct StreetMapView: UIViewRepresentable {
     let revision: Int
     let interactive: Bool
 
-    static let edgePadding: CGFloat = 24
     static let lineWidth: CGFloat = 5
     static let startRadius: CGFloat = 5   // a 10 pt dot
     static let endRadius: CGFloat = 6     // a 12 pt dot
@@ -299,10 +298,11 @@ struct StreetMapView: UIViewRepresentable {
             style.addLayer(endDot)
         }
 
-        /// Fits the whole route with 24 pt to spare, once the view has a size.
+        /// Fits the whole route inside `RouteFitPadding.standard`, once the view has a size.
         func fit(_ view: MLNMapView) {
-            let pad = StreetMapView.edgePadding
-            guard view.bounds.width > pad * 2 + 1, view.bounds.height > pad * 2 + 1,
+            let pad = RouteFitPadding.standard
+            guard view.bounds.width > CGFloat(pad.left + pad.right) + 1,
+                  view.bounds.height > CGFloat(pad.top + pad.bottom) + 1,
                   points.count >= 2, var b = MapBounds.around(points) else { return }
             // A route that has barely moved would zoom past every street; show
             // at least a block or two around it.
@@ -319,7 +319,8 @@ struct StreetMapView: UIViewRepresentable {
             }
             let bounds = MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: b.south, longitude: b.west),
                                              ne: CLLocationCoordinate2D(latitude: b.north, longitude: b.east))
-            view.setVisibleCoordinateBounds(bounds, edgePadding: UIEdgeInsets(top: pad, left: pad, bottom: pad, right: pad),
+            view.setVisibleCoordinateBounds(bounds, edgePadding: UIEdgeInsets(top: CGFloat(pad.top), left: CGFloat(pad.left),
+                                                                      bottom: CGFloat(pad.bottom), right: CGFloat(pad.right)),
                                             animated: false, completionHandler: nil)
         }
 

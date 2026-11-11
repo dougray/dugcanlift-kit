@@ -104,7 +104,7 @@ final class WriteGateTests: XCTestCase {
         let deadline = Date().addingTimeInterval(5)
         while !store.isWriting && Date() < deadline { try await Task.sleep(nanoseconds: 5_000_000) }
         XCTAssertTrue(store.isWriting)
-        try await Task.sleep(nanoseconds: 400_000_000)   // past the settle, into the tiles
+        try await Task.sleep(nanoseconds: 400_000_000)   // into the tiles
         task.cancel()
         _ = await task.result
         XCTAssertFalse(store.isWriting)

@@ -35,68 +35,96 @@ public final class StreetStore: Sendable {
 
     /// Posted, with the store as its object, whenever the set of finished
     /// areas changes (`finishArea`, `deleteArea`), on whichever thread made
-    /// the change. A map drawn over this store decides again on it.
+    /// the change. A map drawn over this store decides again on it. Every
+    /// `StreetStore` open on the same file is told, whichever one changed it.
     public static let didChange = Notification.Name("LiftMapStreetsChanged")
 
-    // MARK: The write gate
+    // MARK: The write gate and the maps-open handshake
 
-    /// Posted, with the store as its object, when the store starts being
+    /// Posted, with the store as its object, when the file starts being
     /// written (`isWriting` turns true) and when the last writer is done
     /// (false), on whichever thread made the change.
     ///
     /// MapLibre reads this file in the same process, read-only and with no
     /// busy timeout: a read during one of our commits fails at once, and a
     /// read held during our write makes the write fail. So maps step back
-    /// while the store is written -- `RouteMap` draws the plain line until
-    /// the gate opens again -- and MapLibre is never reading while we write.
+    /// while the file is written -- `RouteMap` draws the plain line until the
+    /// gate opens again -- and a writer waits for them (`awaitMapsClosed`).
+    ///
+    /// The gate and the count of open maps belong to the file, not to one
+    /// `StreetStore`: every instance open on the same file shares them.
     public static let writingDidChange = Notification.Name("LiftMapStreetsWritingChanged")
 
-    /// How long a writing session waits after closing the gate, so a map on
-    /// screen has let go of the file before the first write.
-    public static let settle: TimeInterval = 0.25
+    private let coordination: FileCoordination
 
-    private let gate = WriteGate()
+    /// True while any writer, through any store on this file, holds the gate.
+    public var isWriting: Bool { coordination.writers > 0 }
 
-    /// True while any writer holds the gate.
-    public var isWriting: Bool { gate.count > 0 }
+    /// Maps drawing this file now (`mapOpened` minus `mapClosed`).
+    var mapsOpen: Int { coordination.maps }
 
     /// Holds the write gate. Counted, so sessions nest: the gate opens only
     /// when every `beginWriting` has had its `endWriting`. Returns true when
     /// this call closed an open gate.
     @discardableResult
     public func beginWriting() -> Bool {
-        let closed = gate.add(1) == 1
-        if closed { NotificationCenter.default.post(name: Self.writingDidChange, object: self) }
+        let closed = coordination.addWriter(1) == 1
+        if closed { post(Self.writingDidChange) }
         return closed
     }
 
     /// Releases one hold on the write gate; extra calls are ignored.
     public func endWriting() {
-        if gate.add(-1) == 0 { NotificationCenter.default.post(name: Self.writingDidChange, object: self) }
+        if coordination.addWriter(-1) == 0 { post(Self.writingDidChange) }
     }
 
-    /// Runs `body` with the gate held, released however it ends. When this
-    /// closed the gate, it first waits `settle` for maps on screen to step back.
+    /// A map view has opened this file (`RouteMap`, as its MapLibre view is made).
+    public func mapOpened() { _ = coordination.addMap(1) }
+
+    /// That map view is gone (as its MapLibre view is dismantled); extra calls are ignored.
+    public func mapClosed() { _ = coordination.addMap(-1) }
+
+    /// Returns once no map has this file open, or when `timeout` has passed
+    /// with one still open (the write then relies on the lock retry), or when
+    /// the waiting task is cancelled. At once when no map is open.
+    public func awaitMapsClosed(timeout: Duration = .seconds(2)) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while coordination.maps > 0 && clock.now < deadline {
+            do {
+                try await Task.sleep(for: .milliseconds(10))
+            } catch {
+                return   // cancelled
+            }
+        }
+    }
+
+    /// Runs `body` with the gate held, released however it ends: the gate
+    /// first, so maps step back, then the wait for them to close, then the
+    /// writes.
     public func whileWriting<T>(_ body: () async throws -> T) async throws -> T {
-        if beginWriting() { try? await Task.sleep(nanoseconds: UInt64(Self.settle * 1_000_000_000)) }
+        beginWriting()
         defer { endWriting() }
+        await awaitMapsClosed()
         return try await body()
     }
 
-    private func postChange() {
-        NotificationCenter.default.post(name: Self.didChange, object: self)
+    /// Posts `name` once for every store open on this file, each as its object.
+    private func post(_ name: Notification.Name) {
+        for store in coordination.stores() {
+            NotificationCenter.default.post(name: name, object: store)
+        }
     }
+
+    private func postChange() {
+        post(Self.didChange)
+    }
+
+    // MARK: Writing
 
     /// How long a write keeps trying while MapLibre is reading the file.
     static let lockWait: TimeInterval = 5
 
-    /// A write transaction that waits out a reader. Two cases: a reader in
-    /// another process makes SQLite answer BUSY, which `busyMode` waits out;
-    /// MapLibre in this process opens the file read-only, and Apple's SQLite
-    /// then answers SQLITE_IOERR_LOCK rather than BUSY while that reader holds
-    /// its shared lock (measured on macOS 27's SQLite 3.54), which no busy
-    /// handler sees. Both are retried until `lockWait` has passed. A failed
-    /// attempt has rolled back, and every write here is safe to repeat.
     /// A write, with the write gate held around it (see `beginWriting`).
     private func write<T>(_ updates: (Database) throws -> T) throws -> T {
         beginWriting()
@@ -104,6 +132,14 @@ public final class StreetStore: Sendable {
         return try retryingWrite(updates)
     }
 
+    /// A write transaction that waits out a reader. Two cases: a reader in
+    /// another process makes SQLite answer BUSY, which `busyMode` waits out;
+    /// MapLibre in this process opens the file read-only, and Apple's SQLite
+    /// then answers SQLITE_IOERR_LOCK rather than BUSY while that reader holds
+    /// its shared lock (measured on macOS 27's SQLite 3.54), which no busy
+    /// handler sees. Both are retried until `lockWait` has passed. A failed
+    /// attempt has rolled back, and every write here is safe to repeat. The
+    /// write gate keeps maps away; this is the second defence.
     private func retryingWrite<T>(_ updates: (Database) throws -> T) throws -> T {
         let deadline = Date().addingTimeInterval(Self.lockWait)
         while true {
@@ -119,6 +155,7 @@ public final class StreetStore: Sendable {
 
     public init(fileURL: URL) throws {
         self.fileURL = fileURL
+        coordination = FileCoordination.forFile(fileURL)
         var config = Configuration()
         // MapLibre reads this file while a download writes it. In DELETE
         // journal mode a commit needs every reader gone, so a write waits for
@@ -153,6 +190,7 @@ public final class StreetStore: Sendable {
                 try db.execute(sql: "INSERT OR REPLACE INTO metadata (name, value) VALUES (?, ?)", arguments: [k, v])
             }
         }
+        coordination.register(self)
     }
 
     /// Application Support/LiftMap/streets.mbtiles, kept out of iCloud backup.
@@ -261,21 +299,59 @@ public final class StreetStore: Sendable {
     }
 }
 
-/// The count behind the write gate.
-final class WriteGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var holds = 0
+/// What every `StreetStore` open on one file shares: the write gate, the
+/// count of maps drawing it, and who to tell. Process-wide, keyed by the
+/// file's standardized path, so a second store on the same file cannot slip
+/// past the gate.
+final class FileCoordination: @unchecked Sendable {
+    private static let registryLock = NSLock()
+    private static var registry: [String: FileCoordination] = [:]
 
-    var count: Int {
-        lock.lock(); defer { lock.unlock() }
-        return holds
+    static func forFile(_ url: URL) -> FileCoordination {
+        let key = url.standardizedFileURL.resolvingSymlinksInPath().path
+        registryLock.lock(); defer { registryLock.unlock() }
+        if let existing = registry[key] { return existing }
+        let made = FileCoordination()
+        registry[key] = made
+        return made
     }
 
+    private struct WeakStore { weak var store: StreetStore? }
+
+    private let lock = NSLock()
+    private var writerCount = 0
+    private var mapCount = 0
+    private var members: [WeakStore] = []
+
+    var writers: Int { lock.lock(); defer { lock.unlock() }; return writerCount }
+    var maps: Int { lock.lock(); defer { lock.unlock() }; return mapCount }
+
     /// Adds `delta` and returns the new count, or -1 when an end had no begin.
-    func add(_ delta: Int) -> Int {
+    func addWriter(_ delta: Int) -> Int {
         lock.lock(); defer { lock.unlock() }
-        if delta < 0 && holds == 0 { return -1 }
-        holds += delta
-        return holds
+        return Self.add(delta, to: &writerCount)
+    }
+
+    func addMap(_ delta: Int) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        return Self.add(delta, to: &mapCount)
+    }
+
+    private static func add(_ delta: Int, to count: inout Int) -> Int {
+        if delta < 0 && count == 0 { return -1 }
+        count += delta
+        return count
+    }
+
+    func register(_ store: StreetStore) {
+        lock.lock(); defer { lock.unlock() }
+        members.removeAll { $0.store == nil }
+        members.append(WeakStore(store: store))
+    }
+
+    /// The stores open on this file now.
+    func stores() -> [StreetStore] {
+        lock.lock(); defer { lock.unlock() }
+        return members.compactMap(\.store)
     }
 }

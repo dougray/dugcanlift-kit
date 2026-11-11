@@ -80,3 +80,8 @@ jobs:
       # Spelling out the files works on both, and is what data/README.md says.
       - name: Data unit tests
         run: node --test data/*.test.mjs
+
+      # The street styles and the web map module both web apps copy, and the
+      # checksum every app pins its copy of map/ to.
+      - name: Map tests
+        run: node --test map/*.test.mjs map/web/*.test.mjs

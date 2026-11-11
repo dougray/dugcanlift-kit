@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Writes map/map-files.sha256: one "<sha256>  <path>" line per file under map/,
-// sorted by path, leaving out this checksum file, this writer and *.test.mjs.
-// Apps pin their copies to it. Usage: node map/write-checksum.mjs
+// web/ included (map.js, the vendored MapLibre GL JS and VENDOR.md), sorted by
+// path, leaving out this checksum file, this writer and *.test.mjs. Every app
+// pins its copy to it: the native builds the styles and fonts, LIFT web and
+// Coach web all of it. Usage: node map/write-checksum.mjs
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";

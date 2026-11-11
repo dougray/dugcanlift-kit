@@ -85,6 +85,7 @@ function fakeMapLibre() {
     addSource(id, s) { this.sources[id] = { ...s, setData(d) { this.data = d; } }; }
     addLayer(l) { this.layers.push(l); }
     fitBounds(b, o) { this.fits.push([b, o]); }
+    setStyle(style, options) { this.style = style; this.styleOptions = options; }
     remove() { this.removed = true; }
   };
   return gl;
@@ -464,8 +465,9 @@ test("only download reaches the network", () => {
     assert.ok(!src.includes(word), word);
   }
   // The one dynamic import loads MapLibre from the app's own map folder.
-  assert.equal(src.split("import(").length - 1, 1);
-  assert.ok(src.includes("import(baseUrl() + 'maplibre-gl.mjs')"));
+  // MapLibre is the page's own classic script; map.js imports nothing.
+  assert.ok(!src.includes("import("), "import(");
+  assert.ok(!/\bimportScripts\b|\.mjs\b/.test(src), "no module or worker script is loaded from here");
 });
 
 // MARK: - Drawing a route
@@ -501,15 +503,16 @@ test("a covered route is drawn over the streets, from local files only", async (
   assert.equal(gl.maps.length, 1);
   const map = gl.maps[0];
   const o = map.options;
-  assert.equal(o.style, `${ORIGIN}/lift/map/style-dark.json`);
+  assert.equal("style" in o, false, "no style until ours, with its placeholders filled");
+  assert.equal(map.style, `${ORIGIN}/lift/map/style-dark.json`);
   assert.equal(o.attributionControl, false);
   assert.equal(o.interactive, false);
   assert.deepEqual(o.transformRequest("https://tiles.openfreemap.org/planet/v1/1/0/0.pbf"), { url: "liftmap://refused" });
   assert.deepEqual(o.transformRequest("https://example.com/x.png"), { url: "liftmap://refused" });
   assert.deepEqual(o.transformRequest("liftmap://tiles/14/3413/6218"), { url: "liftmap://tiles/14/3413/6218" });
-  const styled = o.transformStyle(undefined, JSON.parse(readFileSync(join(here, "..", "style-dark.json"), "utf8")));
+  const styled = map.styleOptions.transformStyle(undefined, JSON.parse(readFileSync(join(here, "..", "style-dark.json"), "utf8")));
   assert.deepEqual(styled.sources.openmaptiles.tiles, ["liftmap://tiles/{z}/{x}/{y}"]);
-  assert.equal(gl.workerUrl, `${ORIGIN}/lift/map/maplibre-gl-worker.mjs`);
+  assert.equal(gl.workerUrl, null, "the worker stays the Blob built into maplibre-gl.js");
 
   // The attribution sits on the map, not in MapLibre's control.
   const words = JSON.stringify(container, (k, v) => (k === "parentNode" ? undefined : v));
@@ -592,6 +595,23 @@ test("a fix that stays inside the route's bounds does not read the index again",
   h.destroy();
 });
 
+test("a page with no MapLibre draws the plain line, and never throws", () => {
+  const { M, win } = load();
+  finishedDenver(M);
+  const container = win.document.createElement("div");
+  let lines = 0;
+  const h = M.mount(container, inDenver, { aspect: 2, fallback: () => { lines += 1; } });
+  assert.equal(lines, 1);
+  h.update([...inDenver, [39.75, -104.98]]);
+  assert.equal(lines, 2);
+  // maplibre-gl.js arrives late: the next update draws the streets.
+  const gl = fakeMapLibre();
+  win.maplibregl = gl;
+  h.update([...inDenver, [39.76, -104.97]]);
+  assert.equal(gl.maps.length, 1);
+  h.destroy();
+});
+
 test("a map that cannot be made is the plain line", async () => {
   const gl = fakeMapLibre();
   gl.Map = class { constructor() { throw new Error("no WebGL"); } };
@@ -642,20 +662,27 @@ test("the copy is the iPhone's, word for word", () => {
 test("MapLibre is the release VENDOR.md names, byte for byte", async () => {
   const { createHash } = await import("node:crypto");
   const vendor = readFileSync(join(here, "VENDOR.md"), "utf8");
-  assert.match(vendor, /\*\*6\.16\.0\*\*/);
+  assert.match(vendor, /\*\*5\.24\.0\*\*/);
   const rows = [...vendor.matchAll(/^\| `([^`]+)` \| `[^`]+` \| `([0-9a-f]{64})` \|$/gm)];
   assert.deepEqual(rows.map((r) => r[1]).sort(),
-    ["LICENSE-maplibre.txt", "maplibre-gl-worker.mjs", "maplibre-gl.css", "maplibre-gl.mjs"]);
+    ["LICENSE-maplibre.txt", "maplibre-gl.css", "maplibre-gl.js"]);
+  const pinned = new Map(readFileSync(join(here, "..", "map-files.sha256"), "utf8").trim().split("\n")
+    .map((l) => [l.slice(66), l.slice(0, 64)]));
   for (const [, file, hash] of rows) {
     assert.equal(createHash("sha256").update(readFileSync(join(here, file))).digest("hex"), hash, file);
+    assert.equal(pinned.get(`web/${file}`), hash, `map-files.sha256: ${file}`);
   }
-  assert.match(readFileSync(join(here, "maplibre-gl.mjs"), "utf8").slice(0, 300), /v6\.16\.0/);
+  const engine = readFileSync(join(here, "maplibre-gl.js"), "utf8");
+  assert.match(engine.slice(0, 300), /v5\.24\.0/);
+  // A classic script (UMD), not an ES module: no import or export statement at the top level.
+  assert.match(engine.slice(0, 600), /\(function \(global, factory\)/);
 });
 
 test("the checksum file lists every web file the apps copy", () => {
   const listed = readFileSync(join(here, "..", "map-files.sha256"), "utf8").trim().split("\n").map((l) => l.slice(66));
-  for (const f of ["map.js", "maplibre-gl.mjs", "maplibre-gl-worker.mjs", "maplibre-gl.css", "LICENSE-maplibre.txt", "VENDOR.md"]) {
+  for (const f of ["map.js", "maplibre-gl.js", "maplibre-gl.css", "LICENSE-maplibre.txt", "VENDOR.md"]) {
     assert.ok(listed.includes(`web/${f}`), f);
   }
+  assert.ok(!listed.some((l) => l.endsWith(".mjs")), "no 6.x module files");
   assert.ok(!listed.some((l) => l.endsWith(".test.mjs")));
 });

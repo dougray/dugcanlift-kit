@@ -17,10 +17,11 @@
  * server, from the marked download section below and from nowhere else.
  * Viewing a map asks for nothing but the app's own files.
  *
- * Classic script, no build step: sets window.LiftMap. MapLibre GL JS 6.x is an
- * ES module only, so it is imported from the app's own map folder the first
- * time a route is covered by downloaded streets; a route with none never
- * loads it.
+ * Classic script, no build step: sets window.LiftMap. MapLibre GL JS 5.x is
+ * another classic script, maplibre-gl.js in the app's own map folder, which
+ * the page loads before this one and which sets window.maplibregl. Its worker
+ * is built from a Blob of code inside that file, so it asks for nothing. With
+ * no window.maplibregl (or no WebGL) every route is the app's plain line.
  */
 (function (window) {
   'use strict';
@@ -637,18 +638,15 @@
 
   // MARK: - MapLibre, from the app's own map folder
 
-  var readyEngine = null;
-  var loadingEngine = null;
   var prepared = new WeakSet();
 
+  /** Registers liftmap:// once per MapLibre, and its stylesheet once per page. */
   function prepare(gl) {
     if (!prepared.has(gl)) {
-      if (typeof gl.setWorkerUrl === 'function') gl.setWorkerUrl(baseUrl() + 'maplibre-gl-worker.mjs');
       gl.addProtocol('liftmap', serveLocal);
       addStylesheet();
       prepared.add(gl);
     }
-    readyEngine = gl;
     return gl;
   }
 
@@ -662,22 +660,15 @@
     doc.head.appendChild(link);
   }
 
-  /** MapLibre now, if a page already loaded it, else null. */
-  function engineNow() {
-    if (readyEngine) return readyEngine;
-    return window.maplibregl ? prepare(window.maplibregl) : null;
-  }
-
+  /** The page's MapLibre (window.maplibregl, from maplibre-gl.js), or null when it has none. */
   function engine() {
-    var now = engineNow();
-    if (now) return Promise.resolve(now);
-    if (!loadingEngine) {
-      loadingEngine = import(baseUrl() + 'maplibre-gl.mjs').then(prepare, function (e) {
-        loadingEngine = null;
-        throw e;
-      });
+    var gl = window.maplibregl;
+    if (!gl || typeof gl.Map !== 'function' || typeof gl.addProtocol !== 'function') return null;
+    try {
+      return prepare(gl);
+    } catch (e) {
+      return null;
     }
-    return loadingEngine;
   }
 
   // MARK: - Drawing a route (RouteMap)
@@ -892,10 +883,11 @@
       container.appendChild(f.outer);
       var made;
       try {
+        // Made with no style, then given ours: MapLibre 5 reads transformStyle
+        // only from setStyle, and the template's placeholders fail validation
+        // unless it is applied first.
         made = new gl.Map({
           container: f.host,
-          style: baseUrl() + (dark ? 'style-dark.json' : 'style-light.json'),
-          transformStyle: function (previous, next) { return webStyle(next); },
           transformRequest: function (url) { return allowedMapUrl(url) ? { url: url } : { url: REFUSED }; },
           interactive: interactive,
           attributionControl: false,
@@ -932,6 +924,14 @@
         drawLine();
       });
       made.on('resize', function () { if (map === made) fit(); });
+      try {
+        made.setStyle(baseUrl() + (dark ? 'style-dark.json' : 'style-light.json'), {
+          transformStyle: function (previous, next) { return webStyle(next); },
+        });
+      } catch (e) {
+        failedKey = key;
+        drawLine();
+      }
     }
 
     function render() {
@@ -946,17 +946,13 @@
         fit();
         return;
       }
-      var gl = engineNow();
+      var gl = engine();
       if (gl) {
         showMap(gl, key);
         return;
       }
-      // The line while MapLibre loads, then the map.
+      // No MapLibre on this page: the line. A later update tries again.
       drawLine();
-      engine().then(function () { render(); }, function () {
-        cannotDraw = true;
-        render();
-      });
     }
 
     function onChanged() { render(); }

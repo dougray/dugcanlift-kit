@@ -1,0 +1,150 @@
+import Foundation
+import GRDB
+
+/// One downloaded area, as the Maps screens list it.
+public struct StreetArea: Identifiable, Equatable, Codable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var detail: MapBounds
+    public var detailKm: Int
+    public var downloadedAt: Date
+    public var bytes: Int
+
+    public init(id: UUID, name: String, detail: MapBounds, detailKm: Int, downloadedAt: Date, bytes: Int) {
+        self.id = id
+        self.name = name
+        self.detail = detail
+        self.detailKm = detailKm
+        self.downloadedAt = downloadedAt
+        self.bytes = bytes
+    }
+}
+
+/// Every downloaded area's vector tiles in ONE MBTiles file, which MapLibre
+/// Native reads read-only through `mbtiles://`. `areas` and `area_tiles` are
+/// ours; MapLibre ignores them. `area_tiles` holds XYZ, `tiles` holds TMS rows.
+public final class StreetStore: Sendable {
+    public let fileURL: URL
+    private let queue: DatabaseQueue
+
+    public init(fileURL: URL) throws {
+        self.fileURL = fileURL
+        var config = Configuration()
+        config.prepareDatabase { db in
+            // MapLibre opens the file read-only; a WAL would need write access to -shm.
+            _ = try db.execute(sql: "PRAGMA journal_mode = DELETE")
+        }
+        queue = try DatabaseQueue(path: fileURL.path, configuration: config)
+        try queue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT);
+                CREATE TABLE IF NOT EXISTS tiles (
+                    zoom_level INT, tile_column INT, tile_row INT, tile_data BLOB,
+                    PRIMARY KEY (zoom_level, tile_column, tile_row));
+                CREATE TABLE IF NOT EXISTS areas (
+                    id TEXT PRIMARY KEY, name TEXT, south REAL, west REAL, north REAL, east REAL,
+                    detail_km INT, started_at REAL, finished_at REAL, bytes INT);
+                CREATE TABLE IF NOT EXISTS area_tiles (
+                    area_id TEXT, z INT, x INT, y INT, PRIMARY KEY (area_id, z, x, y));
+                """)
+            let meta: [(String, String)] = [
+                ("name", "LIFT streets"), ("format", "pbf"), ("minzoom", "0"), ("maxzoom", "14"),
+                ("attribution", "© OpenStreetMap contributors · OpenFreeMap"),
+            ]
+            for (k, v) in meta {
+                try db.execute(sql: "INSERT OR REPLACE INTO metadata (name, value) VALUES (?, ?)", arguments: [k, v])
+            }
+        }
+    }
+
+    /// Application Support/LiftMap/streets.mbtiles, kept out of iCloud backup.
+    public static func standard() throws -> StreetStore {
+        let fm = FileManager.default
+        let base = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let dir = base.appendingPathComponent("LiftMap", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        var file = dir.appendingPathComponent("streets.mbtiles")
+        let store = try StreetStore(fileURL: file)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? file.setResourceValues(values)
+        return store
+    }
+
+    /// The app's one store, opened once; nil if it cannot be opened.
+    public static let shared: StreetStore? = try? StreetStore.standard()
+
+    public func beginArea(_ plan: StreetAreaPlan, name: String) throws -> UUID {
+        let id = UUID()
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO areas (id, name, south, west, north, east, detail_km, started_at, finished_at, bytes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0)
+                """, arguments: [id.uuidString, name, plan.detail.south, plan.detail.west, plan.detail.north,
+                                 plan.detail.east, plan.detailKm, Date().timeIntervalSince1970])
+        }
+        return id
+    }
+
+    public func put(_ data: Data, for tile: TileID, area: UUID) throws {
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT OR REPLACE INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?, ?, ?, ?)
+                """, arguments: [tile.z, tile.x, tile.tmsRow, data])
+            try db.execute(sql: "INSERT OR IGNORE INTO area_tiles (area_id, z, x, y) VALUES (?, ?, ?, ?)",
+                           arguments: [area.uuidString, tile.z, tile.x, tile.y])
+        }
+    }
+
+    public func hasTile(_ tile: TileID, area: UUID) throws -> Bool {
+        try queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT 1 FROM area_tiles WHERE area_id = ? AND z = ? AND x = ? AND y = ?",
+                             arguments: [area.uuidString, tile.z, tile.x, tile.y]) != nil
+        }
+    }
+
+    public func finishArea(_ id: UUID) throws {
+        try queue.write { db in
+            let bytes = try Int.fetchOne(db, sql: """
+                SELECT COALESCE(SUM(LENGTH(t.tile_data)), 0) FROM area_tiles a
+                JOIN tiles t ON t.zoom_level = a.z AND t.tile_column = a.x
+                    AND t.tile_row = ((1 << a.z) - 1 - a.y)
+                WHERE a.area_id = ?
+                """, arguments: [id.uuidString]) ?? 0
+            try db.execute(sql: "UPDATE areas SET finished_at = ?, bytes = ? WHERE id = ?",
+                           arguments: [Date().timeIntervalSince1970, bytes, id.uuidString])
+        }
+    }
+
+    /// Finished areas, newest first.
+    public func areas() throws -> [StreetArea] {
+        try queue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM areas WHERE finished_at IS NOT NULL ORDER BY finished_at DESC")
+                .compactMap { row -> StreetArea? in
+                    guard let id = UUID(uuidString: row["id"]) else { return nil }
+                    let finished: Double = row["finished_at"]
+                    return StreetArea(
+                        id: id, name: row["name"],
+                        detail: MapBounds(south: row["south"], west: row["west"], north: row["north"], east: row["east"]),
+                        detailKm: row["detail_km"], downloadedAt: Date(timeIntervalSince1970: finished),
+                        bytes: row["bytes"])
+                }
+        }
+    }
+
+    public func deleteArea(_ id: UUID) throws {
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM area_tiles WHERE area_id = ?", arguments: [id.uuidString])
+            try db.execute(sql: """
+                DELETE FROM tiles WHERE NOT EXISTS (
+                    SELECT 1 FROM area_tiles a
+                    WHERE a.z = zoom_level AND a.x = tile_column AND a.y = ((1 << zoom_level) - 1 - tile_row))
+                """)
+            try db.execute(sql: "DELETE FROM areas WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    public func covers(_ bounds: MapBounds) throws -> Bool {
+        try areas().contains { $0.detail.intersects(bounds) }
+    }
+}

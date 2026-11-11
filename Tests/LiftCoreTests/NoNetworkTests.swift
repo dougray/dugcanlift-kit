@@ -11,6 +11,18 @@ final class NoNetworkTests: XCTestCase {
     static let forbidden = ["URLSession", "URLRequest", "NWConnection",
                             "import Network", "import MapKit", "import WebKit", "AsyncImage("]
 
+    /// Map code that would reach a server through MapLibre or Foundation rather
+    /// than `URLSession`: MapLibre's offline storage (a cache of remote URLs)
+    /// and its snapshotter (which loads a style of its own), and a file read
+    /// from an http URL. Checked in every file under the two map folders, the
+    /// allowance files included; the Kotlin NoNetworkTest holds the same list.
+    static let mapForbidden = ["MLNOfflineStorage", "MLNMapSnapshotter", "contentsOf: URL(string: \"http"]
+
+    static func mapOffences(in code: String) -> [String] {
+        let stripped = stripComments(code)
+        return mapForbidden.filter { stripped.contains($0) }
+    }
+
     static func stripComments(_ code: String) -> String {
         let line = code.replacingOccurrences(of: "//[^\n]*", with: "", options: .regularExpression)
         return line.replacingOccurrences(of: "/\\*[\\s\\S]*?\\*/", with: "", options: .regularExpression)
@@ -76,6 +88,9 @@ final class NoNetworkTests: XCTestCase {
                 if !allowedNetwork.contains(rel) {
                     found += Self.offences(in: code).map { "\(rel): \($0)" }
                 }
+                if folder.hasPrefix("Sources/LiftMap") {
+                    found += Self.mapOffences(in: code).map { "\(rel): \($0)" }
+                }
                 if !allowedHost.contains(rel), Self.stripComments(code).lowercased().contains("openfreemap.org") {
                     found.append("\(rel): names the tile host")
                 }
@@ -83,6 +98,16 @@ final class NoNetworkTests: XCTestCase {
         }
         XCTAssertGreaterThan(checked, 10)
         XCTAssertEqual(found, [], "a network API or the tile host outside the one download file")
+    }
+
+    func testTheMapScannerCatchesCodeAndIgnoresComments() {
+        XCTAssertEqual(Self.mapOffences(in: "let s = MLNOfflineStorage.shared"), ["MLNOfflineStorage"])
+        XCTAssertEqual(Self.mapOffences(in: "let s = MLNMapSnapshotter(options: o)"), ["MLNMapSnapshotter"])
+        XCTAssertEqual(Self.mapOffences(in: "let d = try Data(contentsOf: URL(string: \"https://a.example/x\")!)"),
+                       ["contentsOf: URL(string: \"http"])
+        XCTAssertEqual(Self.mapOffences(in: "// MLNOfflineStorage is not used\nlet x = 1"), [])
+        XCTAssertEqual(Self.mapOffences(in: "/* MLNMapSnapshotter */\nlet x = 1"), [])
+        XCTAssertEqual(Self.mapOffences(in: "let d = try Data(contentsOf: fileURL)"), [])
     }
 
     func testTheHostGuardCatchesCodeAndIgnoresComments() {

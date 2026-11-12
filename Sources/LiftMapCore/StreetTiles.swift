@@ -90,16 +90,20 @@ public enum StreetTiles {
         return out
     }
 
-    /// Typical OpenFreeMap tile size by zoom, from a sample around a city and
-    /// its countryside; real areas vary by half either way.
+    /// Typical stored OpenFreeMap tile size by zoom (decompressed bytes, as the
+    /// app keeps them), measured 2026-11-12 over real tiles and rounded to the
+    /// nearest 5,000: the mean of a dense city (Manhattan) and a mid-size one
+    /// (Denver), so the estimate leans slightly high for the places people run
+    /// rather than low. The rural figures sit far below and are kept as evidence
+    /// in `map/tile-size-sample.json`, not used. Identical in the Kotlin and JS
+    /// ports; `typicalBytesByZoom` is the table.
+    static let typicalBytesByZoom: [Int] = [
+        85_000, 200_000, 980_000, 400_000, 320_000, // z0-4
+        320_000, 200_000, 180_000, 150_000, 135_000, // z5-9
+        70_000, 100_000, 115_000, 95_000, 155_000, // z10-14
+    ]
+
     public static func typicalBytes(zoom z: Int) -> Int {
-        switch z {
-        case ...5: 250_000
-        case 6 ... 8: 120_000
-        case 9 ... 10: 30_000
-        case 11 ... 12: 40_000
-        case 13: 25_000
-        default: 15_000
-        }
+        typicalBytesByZoom[min(max(z, 0), typicalBytesByZoom.count - 1)]
     }
 }

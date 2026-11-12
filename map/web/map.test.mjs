@@ -827,10 +827,30 @@ test("a cancel is reported as a cancel even when removing the area fails", async
 
 test("Denver's whole plans are the Swift plans, tile for tile and byte for byte", () => {
   const { M } = load();
-  for (const [km, tiles, bytes] of [[10, 273, 8_110_000], [25, 1_125, 23_790_000], [50, 4_069, 79_430_000]]) {
+  for (const [km, tiles, bytes] of [[10, 273, 36_530_000], [25, 1_125, 156_730_000], [50, 4_069, 568_090_000]]) {
     const p = M.plan(39.7392, -104.9903, km);
     assert.equal(p.tiles.length, tiles, `${km} km tiles`);
     assert.equal(M.estimateBytes(p), bytes, `${km} km bytes`);
     assert.equal(p.estimatedBytes, bytes, `${km} km estimatedBytes`);
+  }
+});
+
+test("the size estimate is not low against the measured Denver download", () => {
+  const { M } = load();
+  const measured = 30_000_000; // the real 10 km Denver download, 273 tiles
+  const p = M.plan(39.7392, -104.9903, 10);
+  assert.ok(p.estimatedBytes >= measured * 0.75, "the estimate is low by more than 25%");
+  assert.ok(p.estimatedBytes <= measured * 1.5, "the estimate is more than 50% high");
+});
+
+test("typicalBytes is the measured urban and mid-city mean, rounded to 5,000", () => {
+  const { M } = load();
+  const sample = JSON.parse(readFileSync(join(here, "..", "tile-size-sample.json"), "utf8"));
+  assert.equal(sample.samples.length, 45);
+  const mean = (area, z) => sample.samples.find((r) => r.area === area && r.zoom === z).meanBytes;
+  for (let z = 0; z <= 14; z++) {
+    const target = (mean("urban", z) + mean("mid", z)) / 2;
+    assert.ok(Math.abs(M.typicalBytes(z) - target) <= 2500, `zoom ${z}`);
+    assert.equal(M.typicalBytes(z) % 5000, 0, `zoom ${z}`);
   }
 });

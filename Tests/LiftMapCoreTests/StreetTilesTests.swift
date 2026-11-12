@@ -43,14 +43,49 @@ final class StreetTilesTests: XCTestCase {
     /// suites: a port that plans a different set of tiles fails here and there.
     func testDenverPlansAreTheSharedNumbers() {
         let expected: [(km: Int, tiles: Int, bytes: Int)] = [
-            (10, 273, 8_110_000),
-            (25, 1_125, 23_790_000),
-            (50, 4_069, 79_430_000),
+            (10, 273, 36_530_000),
+            (25, 1_125, 156_730_000),
+            (50, 4_069, 568_090_000),
         ]
         for e in expected {
             let plan = StreetAreaPlan(latitude: 39.7392, longitude: -104.9903, detailKm: e.km)
             XCTAssertEqual(plan.tiles.count, e.tiles, "\(e.km) km tiles")
             XCTAssertEqual(plan.estimatedBytes, e.bytes, "\(e.km) km bytes")
+        }
+    }
+
+    /// The estimate is read from the kit's measured sample, not guessed: Denver's
+    /// 10 km plan came to about 30 MB in a real download, and the estimate must
+    /// not be low by more than a quarter of that (nor absurdly high).
+    func testDenverTenKmEstimateIsNotLowAgainstTheMeasuredDownload() throws {
+        let measured = 30_000_000
+        let plan = StreetAreaPlan(latitude: 39.7392, longitude: -104.9903, detailKm: 10)
+        XCTAssertGreaterThanOrEqual(plan.estimatedBytes, measured * 3 / 4, "the estimate is low by more than 25%")
+        XCTAssertLessThanOrEqual(plan.estimatedBytes, measured * 3 / 2, "the estimate is more than 50% high")
+    }
+
+    /// typicalBytes is the mean of the sample's urban and mid-city per-zoom means,
+    /// rounded to the nearest 5,000; the rural rows are evidence and not used.
+    func testTypicalBytesIsTheMeasuredUrbanAndMidCityMean() throws {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while !FileManager.default.fileExists(atPath: dir.appendingPathComponent("Package.swift").path) {
+            let parent = dir.deletingLastPathComponent()
+            XCTAssertNotEqual(parent, dir, "no Package.swift above the test file")
+            if parent == dir { return }
+            dir = parent
+        }
+        let data = try Data(contentsOf: dir.appendingPathComponent("map/tile-size-sample.json"))
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let samples = try XCTUnwrap(root["samples"] as? [[String: Any]])
+        func mean(_ area: String, _ z: Int) throws -> Double {
+            let row = try XCTUnwrap(samples.first { ($0["area"] as? String) == area && ($0["zoom"] as? Int) == z })
+            return try XCTUnwrap(row["meanBytes"] as? Double)
+        }
+        XCTAssertEqual(samples.count, 45)
+        for z in 0 ... 14 {
+            let target = (try mean("urban", z) + mean("mid", z)) / 2
+            XCTAssertLessThanOrEqual(abs(Double(StreetTiles.typicalBytes(zoom: z)) - target), 2_500, "zoom \(z)")
+            XCTAssertEqual(StreetTiles.typicalBytes(zoom: z) % 5_000, 0, "zoom \(z)")
         }
     }
 

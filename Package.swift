@@ -18,7 +18,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
-        .package(url: "https://github.com/maplibre/maplibre-gl-native-distribution", exact: "6.31.0"),
+        .package(url: "https://github.com/maplibre/maplibre-gl-native-distribution", exact: "7.0.0"),
     ],
     targets: [
         .target(name: "LiftCore"),
